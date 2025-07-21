@@ -257,6 +257,29 @@ class IOC:
             self.tags = []
 
 @dataclass
+class CVE:
+    """Vulnerabilidad CVE"""
+    id: str
+    description: str
+    published_date: datetime
+    last_modified: datetime
+    cvss_score: float
+    cvss_severity: str
+    vector_string: Optional[str]
+    source: str
+    references: List[str] = None
+    cwe_ids: List[str] = None
+    affected_products: List[str] = None
+    
+    def __post_init__(self):
+        if self.references is None:
+            self.references = []
+        if self.cwe_ids is None:
+            self.cwe_ids = []
+        if self.affected_products is None:
+            self.affected_products = []
+
+@dataclass
 class Campaign:
     """Campaña maliciosa"""
     id: str
@@ -1322,46 +1345,156 @@ class ProfessionalThreatIntelligence:
         
         return iocs
     
+    def collect_nvd_cves(self, days_back: int = 30, limit: int = 100) -> List[CVE]:
+        """Recolecta CVEs recientes desde NVD con información completa"""
+        cves = []
+        
+        try:
+            logger.info(f"Consultando NVD para CVEs de los últimos {days_back} días...")
+            recent_cves = self.query_nvd_cves(days_back=days_back)
+            
+            for vuln in recent_cves[:limit]:
+                cve_data = vuln.get('cve', {})
+                cve_id = cve_data.get('id', '')
+                
+                if not cve_id:
+                    continue
+                
+                # Extraer descripción
+                descriptions = cve_data.get('descriptions', [])
+                description = ""
+                for desc in descriptions:
+                    if desc.get('lang') == 'en':
+                        description = desc.get('value', '')
+                        break
+                
+                if not description and descriptions:
+                    description = descriptions[0].get('value', '')
+                
+                # Extraer fechas
+                published_date = cve_data.get('published')
+                last_modified = cve_data.get('lastModified')
+                
+                if published_date:
+                    published_date = datetime.fromisoformat(published_date.replace('Z', '+00:00'))
+                else:
+                    published_date = datetime.utcnow()
+                
+                if last_modified:
+                    last_modified = datetime.fromisoformat(last_modified.replace('Z', '+00:00'))
+                else:
+                    last_modified = published_date
+                
+                # Extraer CVSS score y severidad
+                cvss_score = 0.0
+                cvss_severity = "UNKNOWN"
+                vector_string = None
+                
+                metrics = cve_data.get('metrics', {})
+                
+                # Priorizar CVSS v3.1, luego v3.0, luego v2
+                if 'cvssMetricV31' in metrics and metrics['cvssMetricV31']:
+                    cvss_data = metrics['cvssMetricV31'][0]['cvssData']
+                    cvss_score = cvss_data.get('baseScore', 0.0)
+                    cvss_severity = cvss_data.get('baseSeverity', 'UNKNOWN')
+                    vector_string = cvss_data.get('vectorString')
+                elif 'cvssMetricV30' in metrics and metrics['cvssMetricV30']:
+                    cvss_data = metrics['cvssMetricV30'][0]['cvssData']
+                    cvss_score = cvss_data.get('baseScore', 0.0)
+                    cvss_severity = cvss_data.get('baseSeverity', 'UNKNOWN')
+                    vector_string = cvss_data.get('vectorString')
+                elif 'cvssMetricV2' in metrics and metrics['cvssMetricV2']:
+                    cvss_data = metrics['cvssMetricV2'][0]['cvssData']
+                    cvss_score = cvss_data.get('baseScore', 0.0)
+                    # Mapear score v2 a severidad
+                    if cvss_score >= 7.0:
+                        cvss_severity = "HIGH"
+                    elif cvss_score >= 4.0:
+                        cvss_severity = "MEDIUM"
+                    else:
+                        cvss_severity = "LOW"
+                    vector_string = cvss_data.get('vectorString')
+                
+                # Extraer referencias
+                references = []
+                ref_data = cve_data.get('references', [])
+                for ref in ref_data[:5]:  # Limitar a 5 referencias
+                    url = ref.get('url')
+                    if url:
+                        references.append(url)
+                
+                # Extraer CWE IDs
+                cwe_ids = []
+                weaknesses = cve_data.get('weaknesses', [])
+                for weakness in weaknesses:
+                    descriptions = weakness.get('description', [])
+                    for desc in descriptions:
+                        if desc.get('lang') == 'en':
+                            cwe_id = desc.get('value')
+                            if cwe_id and cwe_id.startswith('CWE-'):
+                                cwe_ids.append(cwe_id)
+                
+                # Extraer productos afectados (simplificado)
+                affected_products = []
+                configurations = cve_data.get('configurations', [])
+                for config in configurations[:3]:  # Limitar para evitar listas muy largas
+                    nodes = config.get('nodes', [])
+                    for node in nodes:
+                        cpe_matches = node.get('cpeMatch', [])
+                        for cpe in cpe_matches[:2]:
+                            criteria = cpe.get('criteria', '')
+                            if criteria:
+                                # Extraer nombre del producto del CPE
+                                parts = criteria.split(':')
+                                if len(parts) >= 4:
+                                    vendor = parts[3]
+                                    product = parts[4]
+                                    affected_products.append(f"{vendor}:{product}")
+                
+                cve = CVE(
+                    id=cve_id,
+                    description=description[:500] + "..." if len(description) > 500 else description,
+                    published_date=published_date,
+                    last_modified=last_modified,
+                    cvss_score=cvss_score,
+                    cvss_severity=cvss_severity,
+                    vector_string=vector_string,
+                    source='nvd',
+                    references=references,
+                    cwe_ids=cwe_ids,
+                    affected_products=list(set(affected_products))
+                )
+                
+                cves.append(cve)
+            
+            logger.info(f"NVD: {len(cves)} CVEs recolectados")
+            
+        except Exception as e:
+            logger.error(f"Error recolectando CVEs de NVD: {e}")
+        
+        return cves
+    
     def collect_nvd_intelligence(self) -> List[IOC]:
-        """Recolecta inteligencia de vulnerabilidades desde NVD"""
+        """Recolecta inteligencia de vulnerabilidades desde NVD (para compatibilidad)"""
         iocs = []
         
         try:
-            logger.info("Consultando NVD para CVEs...")
-            recent_cves = self.query_nvd_cves(days_back=7)
+            cves = self.collect_nvd_cves(days_back=7, limit=15)
             
-            for vuln in recent_cves[:15]:  # Limitar para demo
-                cve_data = vuln.get('cve', {})
-                cve_id = cve_data.get('id', '')
-                descriptions = cve_data.get('descriptions', [])
-                description = descriptions[0].get('value', '') if descriptions else ''
-                
-                if self._is_latam_related(description) and cve_id:
-                    # Calcular confianza basada en CVSS score
-                    base_score = 5.0
-                    try:
-                        metrics = cve_data.get('metrics', {})
-                        if 'cvssMetricV31' in metrics and metrics['cvssMetricV31']:
-                            base_score = metrics['cvssMetricV31'][0]['cvssData']['baseScore']
-                        elif 'cvssMetricV30' in metrics and metrics['cvssMetricV30']:
-                            base_score = metrics['cvssMetricV30'][0]['cvssData']['baseScore']
-                        elif 'cvssMetricV2' in metrics and metrics['cvssMetricV2']:
-                            base_score = metrics['cvssMetricV2'][0]['cvssData']['baseScore']
-                    except:
-                        pass
-                    
-                    confidence = min(95, int((base_score / 10) * 100))
+            for cve in cves:
+                if self._is_latam_related(cve.description):
+                    confidence = min(95, int((cve.cvss_score / 10) * 100))
                     
                     ioc = IOC(
-                        value=cve_id,
+                        value=cve.id,
                         type='cve',
                         confidence=confidence,
-                        first_seen=datetime.utcnow(),
-                        last_seen=datetime.utcnow(),
+                        first_seen=cve.published_date,
+                        last_seen=cve.last_modified,
                         source='nvd',
-                        tags=['vulnerability', 'cve'],
+                        tags=['vulnerability', 'cve', cve.cvss_severity.lower()],
                         threat_type='vulnerability',
-                        country=self._extract_country_from_content(description)
+                        country=self._extract_country_from_content(cve.description)
                     )
                     iocs.append(ioc)
                     
@@ -1529,6 +1662,7 @@ class AegisStorage:
             self.db = self.mongo_client[config.DATABASE_NAME]
             self.campaigns_collection = self.db.campaigns
             self.iocs_collection = self.db.iocs
+            self.cves_collection = self.db.cves
             
             self.mongo_client.server_info()
             logger.info("MongoDB conectado correctamente")
@@ -1539,6 +1673,7 @@ class AegisStorage:
             self.use_memory = True
             self.memory_campaigns = []
             self.memory_iocs = []
+            self.memory_cves = []
         
         if not self.use_memory:
             self._setup_indexes()
@@ -1554,6 +1689,11 @@ class AegisStorage:
             self.iocs_collection.create_index("value", unique=True)
             self.iocs_collection.create_index("type")
             self.iocs_collection.create_index("campaign_id")
+            
+            self.cves_collection.create_index("id", unique=True)
+            self.cves_collection.create_index("published_date")
+            self.cves_collection.create_index("cvss_score")
+            self.cves_collection.create_index("cvss_severity")
             
             logger.info("Índices de base de datos configurados")
             
@@ -1619,6 +1759,153 @@ class AegisStorage:
         except Exception as e:
             logger.error(f"Error almacenando campaña: {e}")
             return False
+    
+    def store_cves(self, cves: List[CVE]) -> int:
+        """Almacena CVEs con manejo robusto de errores"""
+        stored_count = 0
+        
+        for cve in cves:
+            try:
+                cve_dict = asdict(cve)
+                cve_dict['published_date'] = cve.published_date.isoformat()
+                cve_dict['last_modified'] = cve.last_modified.isoformat()
+                
+                if self.use_memory:
+                    if not any(c['id'] == cve.id for c in self.memory_cves):
+                        self.memory_cves.append(cve_dict)
+                        stored_count += 1
+                else:
+                    try:
+                        self.cves_collection.insert_one(cve_dict)
+                        stored_count += 1
+                    except DuplicateKeyError:
+                        # Actualizar CVE existente si hay cambios
+                        self.cves_collection.update_one(
+                            {"id": cve.id},
+                            {"$set": {
+                                "last_modified": cve.last_modified.isoformat(),
+                                "cvss_score": cve.cvss_score,
+                                "cvss_severity": cve.cvss_severity,
+                                "description": cve.description
+                            }}
+                        )
+                        
+            except Exception as e:
+                logger.warning(f"Error almacenando CVE {cve.id}: {e}")
+        
+        if stored_count > 0:
+            logger.info(f"{stored_count} CVEs almacenados/actualizados")
+        
+        return stored_count
+    
+    def get_recent_cves(self, limit: int = 50, severity_filter: str = None) -> List[Dict]:
+        """Obtiene CVEs recientes ordenados por fecha de publicación"""
+        try:
+            if self.use_memory:
+                cves = self.memory_cves.copy()
+                
+                if severity_filter:
+                    cves = [c for c in cves if c['cvss_severity'].upper() == severity_filter.upper()]
+                
+                # Ordenar por fecha de publicación (más reciente primero)
+                cves.sort(key=lambda x: x['published_date'], reverse=True)
+                return cves[:limit]
+                
+            else:
+                search_filter = {}
+                
+                if severity_filter:
+                    search_filter['cvss_severity'] = severity_filter.upper()
+                
+                cves = list(self.cves_collection.find(search_filter)
+                           .sort("published_date", -1)
+                           .limit(limit))
+                
+                for cve in cves:
+                    cve['_id'] = str(cve['_id'])
+                
+                return cves
+                
+        except Exception as e:
+            logger.error(f"Error obteniendo CVEs: {e}")
+            return []
+    
+    def get_cve_statistics(self) -> Dict:
+        """Obtiene estadísticas de CVEs"""
+        try:
+            if self.use_memory:
+                cves = self.memory_cves
+                
+                stats = {
+                    'total_cves': len(cves),
+                    'by_severity': {},
+                    'high_severity_count': 0,
+                    'critical_count': 0,
+                    'recent_count': 0  # Últimos 7 días
+                }
+                
+                week_ago = datetime.utcnow() - timedelta(days=7)
+                
+                for cve in cves:
+                    # Contar por severidad
+                    severity = cve.get('cvss_severity', 'UNKNOWN')
+                    stats['by_severity'][severity] = stats['by_severity'].get(severity, 0) + 1
+                    
+                    # Contar alta severidad y críticos
+                    if severity in ['HIGH', 'CRITICAL']:
+                        stats['high_severity_count'] += 1
+                    if severity == 'CRITICAL':
+                        stats['critical_count'] += 1
+                    
+                    # Contar recientes
+                    pub_date = datetime.fromisoformat(cve['published_date'].replace('Z', '+00:00'))
+                    if pub_date >= week_ago:
+                        stats['recent_count'] += 1
+                
+                return stats
+                
+            else:
+                stats = {
+                    'total_cves': self.cves_collection.count_documents({}),
+                    'by_severity': {},
+                    'high_severity_count': 0,
+                    'critical_count': 0,
+                    'recent_count': 0
+                }
+                
+                # Agregación para contar por severidad
+                pipeline = [
+                    {"$group": {"_id": "$cvss_severity", "count": {"$sum": 1}}}
+                ]
+                
+                severity_counts = list(self.cves_collection.aggregate(pipeline))
+                for item in severity_counts:
+                    severity = item['_id']
+                    count = item['count']
+                    stats['by_severity'][severity] = count
+                    
+                    if severity in ['HIGH', 'CRITICAL']:
+                        stats['high_severity_count'] += count
+                    if severity == 'CRITICAL':
+                        stats['critical_count'] += count
+                
+                # Contar CVEs recientes (últimos 7 días)
+                week_ago = datetime.utcnow() - timedelta(days=7)
+                stats['recent_count'] = self.cves_collection.count_documents({
+                    "published_date": {"$gte": week_ago.isoformat()}
+                })
+                
+                return stats
+                
+        except Exception as e:
+            logger.error(f"Error obteniendo estadísticas de CVEs: {e}")
+            return {
+                'total_cves': 0,
+                'by_severity': {},
+                'high_severity_count': 0,
+                'critical_count': 0,
+                'recent_count': 0
+            }
     
     def search_campaigns(self, query: str = "", filters: Dict = None) -> List[Dict]:
         """Busca campañas con filtros avanzados"""
@@ -2237,6 +2524,102 @@ def create_app():
             border-radius: 50%;
             animation: blink 1s infinite;
         }
+        .cve-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        .cve-table th,
+        .cve-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid rgba(0, 255, 127, 0.2);
+        }
+        .cve-table th {
+            background: rgba(0, 255, 127, 0.1);
+            color: #00ff7f;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+        .cve-table tbody tr:hover {
+            background: rgba(0, 255, 127, 0.05);
+        }
+        .cve-id {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            color: #00ff7f;
+        }
+        .cve-description {
+            max-width: 400px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .severity-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .severity-critical {
+            background: #dc2626;
+            color: #ffffff;
+        }
+        .severity-high {
+            background: #ea580c;
+            color: #ffffff;
+        }
+        .severity-medium {
+            background: #ca8a04;
+            color: #ffffff;
+        }
+        .severity-low {
+            background: #16a34a;
+            color: #ffffff;
+        }
+        .severity-unknown {
+            background: #6b7280;
+            color: #ffffff;
+        }
+        .cvss-score {
+            font-weight: bold;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+        }
+        .cvss-critical {
+            background: rgba(220, 38, 38, 0.2);
+            color: #dc2626;
+        }
+        .cvss-high {
+            background: rgba(234, 88, 12, 0.2);
+            color: #ea580c;
+        }
+        .cvss-medium {
+            background: rgba(202, 138, 4, 0.2);
+            color: #ca8a04;
+        }
+        .cvss-low {
+            background: rgba(22, 163, 74, 0.2);
+            color: #16a34a;
+        }
+        .cve-link {
+            color: #00ff7f;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+        .cve-link:hover {
+            text-decoration: underline;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
     </style>
 </head>
 <body>
@@ -2281,6 +2664,12 @@ def create_app():
                         <div class="nav-link" data-section="iocs">
                             <i class="fas fa-search"></i>
                             IOCs en Vivo
+                        </div>
+                    </li>
+                    <li class="nav-item">
+                        <div class="nav-link" data-section="cves">
+                            <i class="fas fa-bug"></i>
+                            CVEs y Vulnerabilidades
                         </div>
                     </li>
                     <li class="nav-item">
@@ -2456,6 +2845,92 @@ def create_app():
                 </div>
             </div>
 
+            <div id="cves" class="section">
+                <h2 style="margin-bottom: 2rem; color: #00ff7f;">
+                    <i class="fas fa-bug"></i> CVEs y Vulnerabilidades Recientes
+                </h2>
+                
+                <div class="dashboard-grid" style="margin-bottom: 2rem;">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Estadísticas CVEs</h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="stats-mini-grid">
+                                <div class="mini-stat">
+                                    <div class="mini-stat-value" id="totalCVEs">0</div>
+                                    <div class="mini-stat-label">Total CVEs</div>
+                                </div>
+                                <div class="mini-stat">
+                                    <div class="mini-stat-value" id="criticalCVEs">0</div>
+                                    <div class="mini-stat-label">Críticos</div>
+                                </div>
+                                <div class="mini-stat">
+                                    <div class="mini-stat-value" id="highSeverityCVEs">0</div>
+                                    <div class="mini-stat-label">Alta Severidad</div>
+                                </div>
+                                <div class="mini-stat">
+                                    <div class="mini-stat-value" id="recentCVEs">0</div>
+                                    <div class="mini-stat-label">Últimos 7 días</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Acciones Rápidas</h3>
+                        </div>
+                        <div class="card-content">
+                            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                                <button class="action-btn" onclick="updateCVEs()" id="updateCVEsBtn">
+                                    <i class="fas fa-sync"></i>
+                                    Actualizar CVEs desde NVD
+                                </button>
+                                <button class="action-btn" onclick="exportCVEs()">
+                                    <i class="fas fa-download"></i>
+                                    Exportar CVEs
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Filtros y Búsqueda</h3>
+                        <div class="filters">
+                            <div>
+                                <span class="filter-label">Severidad:</span>
+                                <select id="cveSeverityFilter" class="filter-select" onchange="loadCVEs()">
+                                    <option value="">Todas</option>
+                                    <option value="CRITICAL">Crítica</option>
+                                    <option value="HIGH">Alta</option>
+                                    <option value="MEDIUM">Media</option>
+                                    <option value="LOW">Baja</option>
+                                </select>
+                            </div>
+                            <div>
+                                <span class="filter-label">Límite:</span>
+                                <select id="cveLimitFilter" class="filter-select" onchange="loadCVEs()">
+                                    <option value="50">50</option>
+                                    <option value="100">100</option>
+                                    <option value="200">200</option>
+                                </select>
+                            </div>
+                            <button class="action-btn" onclick="loadCVEs()">
+                                <i class="fas fa-sync"></i>
+                                Actualizar Lista
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="cvesTable">
+                    <div class="loading"></div> Cargando CVEs...
+                </div>
+            </div>
+
             <div id="alerts" class="section">
                 <h2 style="margin-bottom: 2rem; color: #00ff7f;">
                     <i class="fas fa-exclamation-triangle"></i> Centro de Alertas
@@ -2567,6 +3042,9 @@ def create_app():
                     break;
                 case 'iocs':
                     loadIOCs();
+                    break;
+                case 'cves':
+                    loadCVEs();
                     break;
                 case 'alerts':
                     loadAlerts();
@@ -2996,6 +3474,180 @@ def create_app():
             window.open(`/api/export/${format}?timestamp=${timestamp}`, '_blank');
         }
 
+        // Funciones para CVEs
+        async function loadCVEs() {
+            try {
+                const container = document.getElementById('cvesTable');
+                container.innerHTML = '<div class="loading"></div> Cargando CVEs...';
+                
+                const params = new URLSearchParams();
+                const severity = document.getElementById('cveSeverityFilter')?.value;
+                const limit = document.getElementById('cveLimitFilter')?.value || '50';
+                
+                if (severity) params.append('severity', severity);
+                params.append('limit', limit);
+                
+                const response = await fetch(`/api/cves?${params}`);
+                const cves = await response.json();
+                
+                if (cves.length === 0) {
+                    container.innerHTML = '<p style="color: #a0aec0;">No se encontraron CVEs</p>';
+                    return;
+                }
+                
+                container.innerHTML = `
+                    <div class="card">
+                        <div class="card-content">
+                            <table class="cve-table">
+                                <thead>
+                                    <tr>
+                                        <th>CVE ID</th>
+                                        <th>Descripción</th>
+                                        <th>Fecha Publicación</th>
+                                        <th>CVSS Score</th>
+                                        <th>Severidad</th>
+                                        <th>Enlaces</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${cves.map(cve => {
+                                        const sevClass = cve.cvss_severity ? cve.cvss_severity.toLowerCase() : 'unknown';
+                                        const scoreClass = getCVSSClass(cve.cvss_score);
+                                        const publishedDate = new Date(cve.published_date).toLocaleDateString('es-ES');
+                                        
+                                        return `
+                                            <tr>
+                                                <td><span class="cve-id">${cve.id}</span></td>
+                                                <td>
+                                                    <div class="cve-description" title="${cve.description}">
+                                                        ${cve.description}
+                                                    </div>
+                                                </td>
+                                                <td>${publishedDate}</td>
+                                                <td>
+                                                    <span class="cvss-score ${scoreClass}">
+                                                        ${cve.cvss_score.toFixed(1)}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span class="severity-badge severity-${sevClass}">
+                                                        ${cve.cvss_severity || 'UNKNOWN'}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <a href="https://nvd.nist.gov/vuln/detail/${cve.id}" 
+                                                       target="_blank" 
+                                                       class="cve-link">
+                                                        <i class="fas fa-external-link-alt"></i> NVD
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        `;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+                
+                // Actualizar estadísticas
+                await loadCVEStats();
+                
+            } catch (error) {
+                console.error('Error cargando CVEs:', error);
+                document.getElementById('cvesTable').innerHTML = '<p style="color: #ff453a;">Error cargando CVEs</p>';
+            }
+        }
+
+        async function loadCVEStats() {
+            try {
+                const response = await fetch('/api/cves/stats');
+                const stats = await response.json();
+                
+                document.getElementById('totalCVEs').textContent = stats.total_cves || 0;
+                document.getElementById('criticalCVEs').textContent = stats.critical_count || 0;
+                document.getElementById('highSeverityCVEs').textContent = stats.high_severity_count || 0;
+                document.getElementById('recentCVEs').textContent = stats.recent_count || 0;
+                
+            } catch (error) {
+                console.error('Error cargando estadísticas CVEs:', error);
+            }
+        }
+
+        async function updateCVEs() {
+            try {
+                const button = document.getElementById('updateCVEsBtn');
+                const originalText = button.innerHTML;
+                
+                button.innerHTML = '<div class="loading"></div> Actualizando CVEs...';
+                button.disabled = true;
+                
+                const response = await fetch('/api/cves/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ days_back: 30, limit: 100 })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    await loadCVEs();
+                    showNotification(`CVEs actualizados: ${result.stored_count} nuevos`, 'success');
+                } else {
+                    showNotification(`Error actualizando CVEs: ${result.message}`, 'error');
+                }
+                
+                button.innerHTML = originalText;
+                button.disabled = false;
+                
+            } catch (error) {
+                console.error('Error actualizando CVEs:', error);
+                showNotification('Error de conexión al actualizar CVEs', 'error');
+                
+                const button = document.getElementById('updateCVEsBtn');
+                button.innerHTML = '<i class="fas fa-sync"></i> Actualizar CVEs desde NVD';
+                button.disabled = false;
+            }
+        }
+
+        function exportCVEs() {
+            const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+            // Por ahora usar el export general, se puede crear uno específico para CVEs
+            exportData('json');
+        }
+
+        function getCVSSClass(score) {
+            if (score >= 9.0) return 'cvss-critical';
+            if (score >= 7.0) return 'cvss-high';
+            if (score >= 4.0) return 'cvss-medium';
+            return 'cvss-low';
+        }
+
+        function showNotification(message, type = 'info') {
+            // Crear notificación temporal
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 80px;
+                right: 20px;
+                background: ${type === 'success' ? '#16a34a' : type === 'error' ? '#dc2626' : '#0066cc'};
+                color: white;
+                padding: 1rem;
+                border-radius: 8px;
+                z-index: 1001;
+                box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+                animation: slideIn 0.3s ease;
+            `;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
         function startAutoRefresh() {
             setInterval(async () => {
                 try {
@@ -3182,6 +3834,62 @@ def create_app():
             logger.error(f"Error exportando datos: {e}")
             return jsonify({'error': str(e)}), 500
     
+    @app.route('/api/cves')
+    def api_cves():
+        """API para obtener CVEs recientes"""
+        try:
+            limit = int(request.args.get('limit', 50))
+            severity_filter = request.args.get('severity')
+            
+            cves = storage.get_recent_cves(limit=limit, severity_filter=severity_filter)
+            return jsonify(cves)
+            
+        except Exception as e:
+            logger.error(f"Error en API CVEs: {e}")
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/cves/stats')
+    def api_cve_stats():
+        """API para estadísticas de CVEs"""
+        try:
+            stats = storage.get_cve_statistics()
+            return jsonify(stats)
+        except Exception as e:
+            logger.error(f"Error en API stats CVEs: {e}")
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/cves/update', methods=['POST'])
+    def api_update_cves():
+        """API para actualizar CVEs desde NVD"""
+        try:
+            days_back = int(request.json.get('days_back', 30)) if request.json else 30
+            limit = int(request.json.get('limit', 100)) if request.json else 100
+            
+            logger.info(f"Actualizando CVEs desde NVD (últimos {days_back} días)...")
+            
+            # Recolectar CVEs desde NVD
+            cves = scraper.collect_nvd_cves(days_back=days_back, limit=limit)
+            
+            # Almacenar CVEs
+            stored_count = storage.store_cves(cves)
+            
+            return jsonify({
+                'message': 'CVEs actualizados exitosamente',
+                'total_collected': len(cves),
+                'stored_count': stored_count,
+                'days_back': days_back,
+                'success': True,
+                'timestamp': datetime.utcnow().isoformat()
+            })
+            
+        except Exception as e:
+            logger.error(f"Error actualizando CVEs: {e}")
+            return jsonify({
+                'message': f'Error actualizando CVEs: {str(e)}',
+                'success': False,
+                'timestamp': datetime.utcnow().isoformat()
+            }), 500
+    
     @app.route('/api/scrape', methods=['POST'])
     def api_scrape():
         """API para ejecutar scraping real de fuentes"""
@@ -3195,6 +3903,16 @@ def create_app():
                 if storage.store_campaign(campaign):
                     stored_count += 1
             
+            # También actualizar CVEs automáticamente
+            try:
+                logger.info("Actualizando CVEs como parte del scraping...")
+                cves = scraper.collect_nvd_cves(days_back=7, limit=50)
+                cve_stored_count = storage.store_cves(cves)
+                logger.info(f"CVEs actualizados: {cve_stored_count}")
+            except Exception as cve_error:
+                logger.warning(f"Error actualizando CVEs durante scraping: {cve_error}")
+                cve_stored_count = 0
+            
             message = f'Scraping de fuentes reales completado exitosamente'
             
             logger.info(f"{message}: {stored_count} campañas nuevas almacenadas de {len(campaigns)} total")
@@ -3203,6 +3921,7 @@ def create_app():
                 'message': message,
                 'total_campaigns': len(campaigns),
                 'stored_campaigns': stored_count,
+                'cves_updated': cve_stored_count,
                 'success': True,
                 'timestamp': datetime.utcnow().isoformat(),
                 'sources_processed': list(set(c.source for c in campaigns))
