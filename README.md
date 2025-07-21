@@ -22,6 +22,14 @@ Sistema profesional de threat intelligence especializado en amenazas de Latinoam
 - **Sistema de confianza** basado en múltiples confirmaciones
 - **Dashboard en tiempo real** con métricas actualizadas
 
+### 🔎 Búsqueda de IOCs en Tiempo Real
+- **Panel dedicado**: Interfaz intuitiva para búsqueda de indicadores
+- **Detección automática**: Reconoce automáticamente el tipo de IOC (hash, IP, URL, dominio)
+- **Múltiples fuentes**: Consulta simultánea a todas las APIs configuradas
+- **Análisis consensuado**: Combina resultados para mayor precisión
+- **Información completa**: Reputación, país, familia de malware, detalles técnicos
+- **Validación de formato**: Verifica automáticamente la validez del IOC ingresado
+
 ---
 
 ## 📦 Instalación y Configuración
