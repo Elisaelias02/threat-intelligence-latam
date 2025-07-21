@@ -3117,6 +3117,7 @@ def create_app():
             font-family: monospace;
             text-transform: uppercase;
         }
+
     </style>
 </head>
 <body>
@@ -3176,6 +3177,7 @@ def create_app():
                         </div>
                     </li>
                     <li class="nav-item">
+
                         <div class="nav-link" data-section="alerts">
                             <i class="fas fa-exclamation-triangle"></i>
                             Centro de Alertas
@@ -3434,6 +3436,7 @@ def create_app():
                 </div>
             </div>
 
+
             <div id="ioc-search" class="section">
                 <h2 style="margin-bottom: 2rem; color: #00ff7f;">
                     <i class="fas fa-search-plus"></i> Búsqueda de IOCs en Tiempo Real
@@ -3484,6 +3487,7 @@ def create_app():
                     </div>
                 </div>
             </div>
+
 
             <div id="alerts" class="section">
                 <h2 style="margin-bottom: 2rem; color: #00ff7f;">
@@ -3603,6 +3607,7 @@ def create_app():
                 case 'ioc-search':
                     initIOCSearch();
                     break;
+
                 case 'alerts':
                     loadAlerts();
                     break;
@@ -4486,6 +4491,8 @@ def create_app():
             
             return detailsHtml || '<p style="color: #a0aec0; font-size: 0.9rem;">Datos disponibles</p>';
         }
+
+
 
         function startAutoRefresh() {
             setInterval(async () => {
