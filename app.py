@@ -56,10 +56,11 @@ class ThreatIntelAPIs:
         self.IBM_XFORCE_PASSWORD = os.environ.get('IBM_XFORCE_PASSWORD')
         self.OTX_API_KEY = os.environ.get('OTX_API_KEY')
         self.HYBRID_ANALYSIS_API_KEY = os.environ.get('HYBRID_ANALYSIS_API_KEY')
-        self.NVD_API_KEY = os.environ.get('NVD_API_KEY')  # Opcional para rate limiting
+        self.NVD_API_KEY = os.environ.get('NVD_API_KEY')
+        self.MALWARE_BAZAAR_API_KEY = os.environ.get('MALWARE_BAZAAR_API_KEY')  # Opcional
         
-        # URLs base de las APIs
-        self.VIRUSTOTAL_BASE_URL = "https://www.virustotal.com/vtapi/v2"
+        # URLs base de las APIs (actualizadas para v3)
+        self.VIRUSTOTAL_BASE_URL_V3 = "https://www.virustotal.com/api/v3"
         self.IBM_XFORCE_BASE_URL = "https://api.xforce.ibmcloud.com"
         self.OTX_BASE_URL = "https://otx.alienvault.com/api/v1"
         self.HYBRID_ANALYSIS_BASE_URL = "https://www.hybrid-analysis.com/api/v2"
@@ -73,15 +74,19 @@ class ThreatIntelAPIs:
             'Content-Type': 'application/json'
         }
         
-        # Rate limiting
+        # Rate limiting (actualizados para APIs v3)
         self.rate_limits = {
-            'virustotal': {'requests_per_minute': 4, 'last_request': 0},
+            'virustotal': {'requests_per_minute': 240, 'last_request': 0},  # 4 por segundo = 240 por minuto
             'ibm_xforce': {'requests_per_minute': 60, 'last_request': 0},
             'otx': {'requests_per_minute': 1000, 'last_request': 0},
             'hybrid_analysis': {'requests_per_minute': 200, 'last_request': 0},
             'malware_bazaar': {'requests_per_minute': 1000, 'last_request': 0},
             'nvd': {'requests_per_minute': 50, 'last_request': 0}
         }
+        
+        # Configurar session con timeout
+        self.session = requests.Session()
+        self.session.timeout = 30
     
     def _respect_rate_limit(self, service: str):
         """Respeta los límites de rate limiting por servicio"""
@@ -100,10 +105,10 @@ class ThreatIntelAPIs:
         self.rate_limits[service]['last_request'] = time.time()
     
     def get_virustotal_headers(self) -> Dict[str, str]:
-        """Headers para VirusTotal API"""
+        """Headers para VirusTotal API v3"""
         headers = self.headers.copy()
         if self.VIRUSTOTAL_API_KEY:
-            headers['apikey'] = self.VIRUSTOTAL_API_KEY
+            headers['x-apikey'] = self.VIRUSTOTAL_API_KEY
         return headers
     
     def get_ibm_xforce_headers(self) -> Dict[str, str]:
@@ -135,6 +140,389 @@ class ThreatIntelAPIs:
         if self.NVD_API_KEY:
             headers['apiKey'] = self.NVD_API_KEY
         return headers
+
+# =====================================================
+# SISTEMA DE BÚSQUEDA DE IOCs EN TIEMPO REAL
+# =====================================================
+
+@dataclass
+class IOCSearchResult:
+    """Resultado de búsqueda de IOC"""
+    ioc_value: str
+    ioc_type: str
+    is_malicious: bool
+    reputation_score: int  # 0-100
+    country: Optional[str]
+    malware_family: Optional[str]
+    first_seen: Optional[datetime]
+    last_seen: Optional[datetime]
+    sources: List[str]
+    details: Dict[str, Any]
+    verdict: str  # "clean", "suspicious", "malicious", "unknown"
+
+class IOCValidator:
+    """Validador de tipos de IOC"""
+    
+    @staticmethod
+    def detect_ioc_type(ioc: str) -> str:
+        """Detecta automáticamente el tipo de IOC"""
+        ioc = ioc.strip()
+        
+        # Hash patterns
+        if re.match(r'^[a-fA-F0-9]{32}$', ioc):
+            return 'hash_md5'
+        elif re.match(r'^[a-fA-F0-9]{40}$', ioc):
+            return 'hash_sha1'
+        elif re.match(r'^[a-fA-F0-9]{64}$', ioc):
+            return 'hash_sha256'
+        
+        # IP pattern
+        elif re.match(r'^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$', ioc):
+            return 'ip'
+        
+        # URL pattern
+        elif ioc.startswith(('http://', 'https://', 'ftp://')):
+            return 'url'
+        
+        # Domain pattern (simple check)
+        elif '.' in ioc and not ioc.startswith('http') and not re.search(r'[^a-zA-Z0-9.-]', ioc):
+            return 'domain'
+        
+        return 'unknown'
+    
+    @staticmethod
+    def is_valid_ioc(ioc: str) -> bool:
+        """Valida si es un IOC válido"""
+        return IOCValidator.detect_ioc_type(ioc) != 'unknown'
+
+class RealTimeIOCSearcher:
+    """Sistema de búsqueda de IOCs en tiempo real"""
+    
+    def __init__(self, api_config: ThreatIntelAPIs):
+        self.api_config = api_config
+        self.logger = logging.getLogger(__name__)
+    
+    def search_ioc(self, ioc_value: str) -> IOCSearchResult:
+        """Busca un IOC en todas las fuentes disponibles"""
+        ioc_type = IOCValidator.detect_ioc_type(ioc_value)
+        
+        if not IOCValidator.is_valid_ioc(ioc_value):
+            return IOCSearchResult(
+                ioc_value=ioc_value,
+                ioc_type='invalid',
+                is_malicious=False,
+                reputation_score=0,
+                country=None,
+                malware_family=None,
+                first_seen=None,
+                last_seen=None,
+                sources=[],
+                details={'error': 'IOC format not recognized'},
+                verdict='unknown'
+            )
+        
+        # Recolectar resultados de todas las fuentes
+        all_results = []
+        sources_used = []
+        
+        # VirusTotal
+        if self.api_config.VIRUSTOTAL_API_KEY:
+            try:
+                vt_result = self._search_virustotal(ioc_value, ioc_type)
+                if vt_result:
+                    all_results.append(vt_result)
+                    sources_used.append('VirusTotal')
+            except Exception as e:
+                self.logger.warning(f"Error en VirusTotal: {e}")
+        
+        # IBM X-Force
+        if self.api_config.IBM_XFORCE_API_KEY:
+            try:
+                xforce_result = self._search_ibm_xforce(ioc_value, ioc_type)
+                if xforce_result:
+                    all_results.append(xforce_result)
+                    sources_used.append('IBM X-Force')
+            except Exception as e:
+                self.logger.warning(f"Error en IBM X-Force: {e}")
+        
+        # OTX AlienVault
+        if self.api_config.OTX_API_KEY:
+            try:
+                otx_result = self._search_otx(ioc_value, ioc_type)
+                if otx_result:
+                    all_results.append(otx_result)
+                    sources_used.append('OTX AlienVault')
+            except Exception as e:
+                self.logger.warning(f"Error en OTX: {e}")
+        
+        # MalwareBazaar (para hashes)
+        if ioc_type.startswith('hash'):
+            try:
+                mb_result = self._search_malware_bazaar(ioc_value, ioc_type)
+                if mb_result:
+                    all_results.append(mb_result)
+                    sources_used.append('MalwareBazaar')
+            except Exception as e:
+                self.logger.warning(f"Error en MalwareBazaar: {e}")
+        
+        # Agregar resultados de fuentes públicas gratuitas
+        try:
+            public_result = self._search_public_sources(ioc_value, ioc_type)
+            if public_result:
+                all_results.append(public_result)
+                sources_used.append('Public Sources')
+        except Exception as e:
+            self.logger.warning(f"Error en fuentes públicas: {e}")
+        
+        # Combinar todos los resultados
+        return self._combine_results(ioc_value, ioc_type, all_results, sources_used)
+    
+    def _search_virustotal(self, ioc_value: str, ioc_type: str) -> Optional[Dict]:
+        """Busca en VirusTotal API v3"""
+        self.api_config._respect_rate_limit('virustotal')
+        
+        # Determinar endpoint según tipo de IOC
+        if ioc_type.startswith('hash'):
+            endpoint = f"{self.api_config.VIRUSTOTAL_BASE_URL_V3}/files/{ioc_value}"
+        elif ioc_type == 'url':
+            import base64
+            url_id = base64.urlsafe_b64encode(ioc_value.encode()).decode().strip('=')
+            endpoint = f"{self.api_config.VIRUSTOTAL_BASE_URL_V3}/urls/{url_id}"
+        elif ioc_type == 'domain':
+            endpoint = f"{self.api_config.VIRUSTOTAL_BASE_URL_V3}/domains/{ioc_value}"
+        elif ioc_type == 'ip':
+            endpoint = f"{self.api_config.VIRUSTOTAL_BASE_URL_V3}/ip_addresses/{ioc_value}"
+        else:
+            return None
+        
+        response = self.api_config.session.get(endpoint, headers=self.api_config.get_virustotal_headers())
+        
+        if response.status_code == 200:
+            data = response.json().get('data', {})
+            attributes = data.get('attributes', {})
+            stats = attributes.get('last_analysis_stats', {})
+            
+            malicious_count = stats.get('malicious', 0)
+            total_engines = sum(stats.values()) if stats else 1
+            
+            return {
+                'source': 'virustotal',
+                'malicious_count': malicious_count,
+                'total_engines': total_engines,
+                'reputation_score': max(0, 100 - int((malicious_count / max(total_engines, 1)) * 100)),
+                'is_malicious': malicious_count > 0,
+                'verdict': 'malicious' if malicious_count > 0 else 'clean',
+                'country': attributes.get('country'),
+                'first_seen': attributes.get('first_submission_date'),
+                'last_seen': attributes.get('last_analysis_date'),
+                'details': {
+                    'engines_detected': malicious_count,
+                    'total_engines': total_engines,
+                    'scan_date': attributes.get('last_analysis_date')
+                }
+            }
+        
+        return None
+    
+    def _search_ibm_xforce(self, ioc_value: str, ioc_type: str) -> Optional[Dict]:
+        """Busca en IBM X-Force Exchange"""
+        self.api_config._respect_rate_limit('ibm_xforce')
+        
+        # Determinar endpoint según tipo de IOC
+        if ioc_type == 'url':
+            endpoint = f"{self.api_config.IBM_XFORCE_BASE_URL}/url/{requests.utils.quote(ioc_value, safe='')}"
+        elif ioc_type == 'domain':
+            endpoint = f"{self.api_config.IBM_XFORCE_BASE_URL}/resolve/{ioc_value}"
+        elif ioc_type == 'ip':
+            endpoint = f"{self.api_config.IBM_XFORCE_BASE_URL}/ipr/{ioc_value}"
+        elif ioc_type.startswith('hash'):
+            endpoint = f"{self.api_config.IBM_XFORCE_BASE_URL}/malware/{ioc_value}"
+        else:
+            return None
+        
+        response = self.api_config.session.get(endpoint, headers=self.api_config.get_ibm_xforce_headers())
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            if ioc_type == 'url':
+                result = data.get('result', {})
+                score = result.get('score', 1)
+                cats = result.get('cats', {})
+                
+                return {
+                    'source': 'ibm_xforce',
+                    'reputation_score': max(0, 100 - (score * 10)),
+                    'is_malicious': score > 5,
+                    'verdict': 'malicious' if score > 5 else 'suspicious' if score > 1 else 'clean',
+                    'categories': list(cats.keys()) if cats else [],
+                    'details': {
+                        'risk_score': score,
+                        'categories': cats
+                    }
+                }
+            
+            elif ioc_type == 'ip':
+                score = data.get('score', 1)
+                geo = data.get('geo', {})
+                
+                return {
+                    'source': 'ibm_xforce',
+                    'reputation_score': max(0, 100 - (score * 10)),
+                    'is_malicious': score > 5,
+                    'verdict': 'malicious' if score > 5 else 'suspicious' if score > 1 else 'clean',
+                    'country': geo.get('country'),
+                    'details': {
+                        'risk_score': score,
+                        'geo': geo
+                    }
+                }
+        
+        return None
+    
+    def _search_otx(self, ioc_value: str, ioc_type: str) -> Optional[Dict]:
+        """Busca en OTX AlienVault"""
+        self.api_config._respect_rate_limit('otx')
+        
+        # Determinar endpoint según tipo de IOC
+        if ioc_type == 'domain':
+            endpoint = f"{self.api_config.OTX_BASE_URL}/indicators/domain/{ioc_value}/general"
+        elif ioc_type == 'ip':
+            endpoint = f"{self.api_config.OTX_BASE_URL}/indicators/IPv4/{ioc_value}/general"
+        elif ioc_type == 'url':
+            endpoint = f"{self.api_config.OTX_BASE_URL}/indicators/url/{requests.utils.quote(ioc_value, safe='')}/general"
+        elif ioc_type.startswith('hash'):
+            endpoint = f"{self.api_config.OTX_BASE_URL}/indicators/file/{ioc_value}/general"
+        else:
+            return None
+        
+        response = self.api_config.session.get(endpoint, headers=self.api_config.get_otx_headers())
+        
+        if response.status_code == 200:
+            data = response.json()
+            pulse_count = len(data.get('pulse_info', {}).get('pulses', []))
+            
+            return {
+                'source': 'otx_alienvault',
+                'reputation_score': max(0, 100 - (pulse_count * 5)),
+                'is_malicious': pulse_count > 0,
+                'verdict': 'malicious' if pulse_count > 3 else 'suspicious' if pulse_count > 0 else 'clean',
+                'pulse_count': pulse_count,
+                'details': {
+                    'pulses_count': pulse_count,
+                    'indicator_type': data.get('type')
+                }
+            }
+        
+        return None
+    
+    def _search_malware_bazaar(self, ioc_value: str, ioc_type: str) -> Optional[Dict]:
+        """Busca en MalwareBazaar"""
+        self.api_config._respect_rate_limit('malware_bazaar')
+        
+        if not ioc_type.startswith('hash'):
+            return None
+        
+        # Determinar el tipo de hash
+        hash_type = ioc_type.split('_')[1] if '_' in ioc_type else 'sha256'
+        
+        payload = {
+            'query': 'get_info',
+            'hash': ioc_value
+        }
+        
+        response = self.api_config.session.post(
+            f"{self.api_config.MALWARE_BAZAAR_BASE_URL}/",
+            data=payload
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            if data.get('query_status') == 'ok':
+                sample_data = data.get('data', [])
+                if sample_data:
+                    sample = sample_data[0]
+                    
+                    return {
+                        'source': 'malware_bazaar',
+                        'reputation_score': 0,  # Si está en MB, es malicioso
+                        'is_malicious': True,
+                        'verdict': 'malicious',
+                        'malware_family': sample.get('signature'),
+                        'first_seen': sample.get('first_seen'),
+                        'details': {
+                            'file_name': sample.get('file_name'),
+                            'file_size': sample.get('file_size'),
+                            'signature': sample.get('signature'),
+                            'tags': sample.get('tags', [])
+                        }
+                    }
+        
+        return None
+    
+    def _search_public_sources(self, ioc_value: str, ioc_type: str) -> Optional[Dict]:
+        """Busca en fuentes públicas gratuitas"""
+        # Implementar búsqueda en fuentes como AbuseIPDB, etc.
+        # Por ahora retornamos None pero se puede expandir
+        return None
+    
+    def _combine_results(self, ioc_value: str, ioc_type: str, results: List[Dict], sources: List[str]) -> IOCSearchResult:
+        """Combina resultados de múltiples fuentes"""
+        if not results:
+            return IOCSearchResult(
+                ioc_value=ioc_value,
+                ioc_type=ioc_type,
+                is_malicious=False,
+                reputation_score=50,  # Neutral
+                country=None,
+                malware_family=None,
+                first_seen=None,
+                last_seen=None,
+                sources=[],
+                details={'message': 'No data available from configured sources'},
+                verdict='unknown'
+            )
+        
+        # Análisis de consenso
+        malicious_votes = sum(1 for r in results if r.get('is_malicious', False))
+        total_votes = len(results)
+        
+        # Calcular puntuación de reputación promedio
+        scores = [r.get('reputation_score', 50) for r in results if 'reputation_score' in r]
+        avg_reputation = sum(scores) / len(scores) if scores else 50
+        
+        # Determinar veredicto final
+        if malicious_votes > total_votes // 2:
+            verdict = 'malicious'
+        elif malicious_votes > 0:
+            verdict = 'suspicious'
+        else:
+            verdict = 'clean'
+        
+        # Recopilar información adicional
+        countries = [r.get('country') for r in results if r.get('country')]
+        malware_families = [r.get('malware_family') for r in results if r.get('malware_family')]
+        
+        # Combinar todos los detalles
+        combined_details = {}
+        for result in results:
+            source = result.get('source', 'unknown')
+            combined_details[source] = result.get('details', {})
+        
+        return IOCSearchResult(
+            ioc_value=ioc_value,
+            ioc_type=ioc_type,
+            is_malicious=malicious_votes > 0,
+            reputation_score=int(avg_reputation),
+            country=countries[0] if countries else None,
+            malware_family=malware_families[0] if malware_families else None,
+            first_seen=None,  # Se puede implementar combinando fechas
+            last_seen=None,   # Se puede implementar combinando fechas
+            sources=sources,
+            details=combined_details,
+            verdict=verdict
+        )
 
 # =====================================================
 # CONFIGURACIÓN Y LOGGING
@@ -2620,6 +3008,116 @@ def create_app():
             from { transform: translateX(0); opacity: 1; }
             to { transform: translateX(100%); opacity: 0; }
         }
+        .ioc-result-card {
+            background: linear-gradient(135deg, #1a2332 0%, #2d3748 100%);
+            border-radius: 12px;
+            border: 1px solid rgba(0, 255, 127, 0.3);
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .ioc-result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .ioc-value-display {
+            font-family: 'Courier New', monospace;
+            font-size: 1.1rem;
+            color: #00ff7f;
+            word-break: break-all;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 0.5rem;
+            border-radius: 6px;
+        }
+        .verdict-badge {
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+        }
+        .verdict-clean {
+            background: #16a34a;
+            color: #ffffff;
+        }
+        .verdict-suspicious {
+            background: #ca8a04;
+            color: #ffffff;
+        }
+        .verdict-malicious {
+            background: #dc2626;
+            color: #ffffff;
+        }
+        .verdict-unknown {
+            background: #6b7280;
+            color: #ffffff;
+        }
+        .reputation-score {
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-align: center;
+            padding: 1rem;
+            border-radius: 8px;
+            min-width: 100px;
+        }
+        .reputation-high {
+            background: rgba(22, 163, 74, 0.2);
+            color: #16a34a;
+            border: 1px solid #16a34a;
+        }
+        .reputation-medium {
+            background: rgba(202, 138, 4, 0.2);
+            color: #ca8a04;
+            border: 1px solid #ca8a04;
+        }
+        .reputation-low {
+            background: rgba(220, 38, 38, 0.2);
+            color: #dc2626;
+            border: 1px solid #dc2626;
+        }
+        .sources-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .source-card {
+            background: rgba(0, 255, 127, 0.05);
+            border: 1px solid rgba(0, 255, 127, 0.2);
+            border-radius: 8px;
+            padding: 1rem;
+        }
+        .source-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .source-logo {
+            width: 20px;
+            height: 20px;
+            background: #00ff7f;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            color: #000;
+            font-weight: bold;
+        }
+        .ioc-type-badge {
+            background: rgba(0, 255, 127, 0.2);
+            color: #00ff7f;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-family: monospace;
+            text-transform: uppercase;
+        }
+
     </style>
 </head>
 <body>
@@ -2673,6 +3171,13 @@ def create_app():
                         </div>
                     </li>
                     <li class="nav-item">
+                        <div class="nav-link" data-section="ioc-search">
+                            <i class="fas fa-search-plus"></i>
+                            Búsqueda de IOCs
+                        </div>
+                    </li>
+                    <li class="nav-item">
+
                         <div class="nav-link" data-section="alerts">
                             <i class="fas fa-exclamation-triangle"></i>
                             Centro de Alertas
@@ -2931,6 +3436,59 @@ def create_app():
                 </div>
             </div>
 
+
+            <div id="ioc-search" class="section">
+                <h2 style="margin-bottom: 2rem; color: #00ff7f;">
+                    <i class="fas fa-search-plus"></i> Búsqueda de IOCs en Tiempo Real
+                </h2>
+                
+                <div class="card" style="margin-bottom: 2rem;">
+                    <div class="card-header">
+                        <h3>Buscar Indicador de Compromiso</h3>
+                        <p style="color: #a0aec0; margin: 0.5rem 0;">
+                            Ingresa un hash, dominio, IP o URL para consultar múltiples fuentes de threat intelligence
+                        </p>
+                    </div>
+                    <div class="card-content">
+                        <div style="display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                            <div style="flex: 1; min-width: 300px;">
+                                <input type="text" 
+                                       id="iocSearchInput" 
+                                       class="filter-input" 
+                                       placeholder="Ej: google.com, 8.8.8.8, d41d8cd98f00b204e9800998ecf8427e..."
+                                       style="width: 100%; font-family: monospace;">
+                            </div>
+                            <button class="action-btn" onclick="searchIOC()" id="searchIOCBtn">
+                                <i class="fas fa-search"></i>
+                                Buscar IOC
+                            </button>
+                        </div>
+                        
+                        <div style="display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                            <div>
+                                <span class="filter-label">Tipo detectado:</span>
+                                <span id="detectedType" style="color: #00ff7f; font-weight: bold;">-</span>
+                            </div>
+                            <div>
+                                <span class="filter-label">Fuentes configuradas:</span>
+                                <span id="configuredSources" style="color: #a0aec0;">Verificando...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="iocSearchResults">
+                    <div class="card">
+                        <div class="card-content" style="text-align: center; padding: 3rem;">
+                            <i class="fas fa-search" style="font-size: 3rem; color: #a0aec0; margin-bottom: 1rem;"></i>
+                            <h3 style="color: #a0aec0; margin-bottom: 0.5rem;">Buscar un IOC</h3>
+                            <p style="color: #a0aec0;">Ingresa un indicador de compromiso arriba para comenzar la búsqueda</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
             <div id="alerts" class="section">
                 <h2 style="margin-bottom: 2rem; color: #00ff7f;">
                     <i class="fas fa-exclamation-triangle"></i> Centro de Alertas
@@ -3046,6 +3604,10 @@ def create_app():
                 case 'cves':
                     loadCVEs();
                     break;
+                case 'ioc-search':
+                    initIOCSearch();
+                    break;
+
                 case 'alerts':
                     loadAlerts();
                     break;
@@ -3648,6 +4210,290 @@ def create_app():
             }, 3000);
         }
 
+        // Funciones para búsqueda de IOCs
+        function initIOCSearch() {
+            // Verificar fuentes configuradas
+            checkConfiguredSources();
+            
+            // Agregar event listener para Enter en el input
+            const searchInput = document.getElementById('iocSearchInput');
+            if (searchInput) {
+                searchInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        searchIOC();
+                    }
+                });
+                
+                searchInput.addEventListener('input', function() {
+                    const iocValue = this.value.trim();
+                    const detectedType = detectIOCType(iocValue);
+                    document.getElementById('detectedType').textContent = detectedType || '-';
+                });
+            }
+        }
+
+        async function checkConfiguredSources() {
+            try {
+                const response = await fetch('/api/ioc-search/sources');
+                const data = await response.json();
+                
+                const sourceNames = data.sources || [];
+                const sourcesText = sourceNames.length > 0 ? sourceNames.join(', ') : 'Ninguna configurada';
+                document.getElementById('configuredSources').textContent = sourcesText;
+                
+            } catch (error) {
+                document.getElementById('configuredSources').textContent = 'Error verificando';
+                console.error('Error verificando fuentes:', error);
+            }
+        }
+
+        function detectIOCType(ioc) {
+            if (!ioc) return '';
+            
+            ioc = ioc.trim();
+            
+            // Hash patterns
+            if (/^[a-fA-F0-9]{32}$/.test(ioc)) return 'MD5 Hash';
+            if (/^[a-fA-F0-9]{40}$/.test(ioc)) return 'SHA1 Hash';
+            if (/^[a-fA-F0-9]{64}$/.test(ioc)) return 'SHA256 Hash';
+            
+            // IP pattern
+            if (/^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(ioc)) {
+                return 'Dirección IP';
+            }
+            
+            // URL pattern
+            if (ioc.startsWith('http://') || ioc.startsWith('https://') || ioc.startsWith('ftp://')) {
+                return 'URL';
+            }
+            
+            // Domain pattern
+            if (ioc.includes('.') && !ioc.startsWith('http') && !/[^a-zA-Z0-9.-]/.test(ioc)) {
+                return 'Dominio';
+            }
+            
+            return 'Formato no reconocido';
+        }
+
+        async function searchIOC() {
+            const searchInput = document.getElementById('iocSearchInput');
+            const iocValue = searchInput.value.trim();
+            
+            if (!iocValue) {
+                showNotification('Por favor ingresa un IOC para buscar', 'error');
+                return;
+            }
+            
+            const button = document.getElementById('searchIOCBtn');
+            const originalText = button.innerHTML;
+            
+            try {
+                button.innerHTML = '<div class="loading"></div> Buscando...';
+                button.disabled = true;
+                
+                // Mostrar estado de búsqueda
+                document.getElementById('iocSearchResults').innerHTML = `
+                    <div class="card">
+                        <div class="card-content" style="text-align: center; padding: 3rem;">
+                            <div class="loading" style="margin: 0 auto 1rem;"></div>
+                            <h3 style="color: #00ff7f;">Buscando en fuentes de threat intelligence...</h3>
+                            <p style="color: #a0aec0;">Consultando VirusTotal, IBM X-Force, OTX y otras fuentes</p>
+                        </div>
+                    </div>
+                `;
+                
+                const response = await fetch('/api/ioc-search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ioc: iocValue })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    displayIOCResults(result);
+                    showNotification('Búsqueda completada', 'success');
+                } else {
+                    throw new Error(result.error || 'Error en la búsqueda');
+                }
+                
+            } catch (error) {
+                console.error('Error buscando IOC:', error);
+                showNotification('Error en la búsqueda: ' + error.message, 'error');
+                
+                document.getElementById('iocSearchResults').innerHTML = `
+                    <div class="card">
+                        <div class="card-content" style="text-align: center; padding: 3rem;">
+                            <i class="fas fa-exclamation-triangle" style="font-size: 3rem; color: #ff453a; margin-bottom: 1rem;"></i>
+                            <h3 style="color: #ff453a;">Error en la búsqueda</h3>
+                            <p style="color: #a0aec0;">${error.message}</p>
+                        </div>
+                    </div>
+                `;
+                
+            } finally {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }
+        }
+
+        function displayIOCResults(result) {
+            const container = document.getElementById('iocSearchResults');
+            
+            if (result.ioc_type === 'invalid') {
+                container.innerHTML = `
+                    <div class="card">
+                        <div class="card-content" style="text-align: center; padding: 3rem;">
+                            <i class="fas fa-exclamation-circle" style="font-size: 3rem; color: #ff9500; margin-bottom: 1rem;"></i>
+                            <h3 style="color: #ff9500;">Formato de IOC no válido</h3>
+                            <p style="color: #a0aec0;">El valor ingresado no corresponde a un tipo de IOC reconocido</p>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+            
+            const verdictClass = \`verdict-\${result.verdict}\`;
+            const reputationClass = getReputationClass(result.reputation_score);
+            
+            let sourcesHtml = '';
+            if (result.sources && result.sources.length > 0) {
+                sourcesHtml = \`
+                    <div class="sources-grid">
+                        \${result.sources.map(source => \`
+                            <div class="source-card">
+                                <div class="source-header">
+                                    <div class="source-logo">\${getSourceLogo(source)}</div>
+                                    <strong>\${source}</strong>
+                                </div>
+                                \${getSourceDetails(source, result.details)}
+                            </div>
+                        \`).join('')}
+                    </div>
+                \`;
+            } else {
+                sourcesHtml = \`
+                    <div style="text-align: center; padding: 2rem; background: rgba(255, 149, 0, 0.1); border-radius: 8px; border: 1px solid #ff9500;">
+                        <i class="fas fa-info-circle" style="color: #ff9500; margin-bottom: 0.5rem;"></i>
+                        <p style="color: #ff9500; margin: 0;">No hay fuentes de threat intelligence configuradas</p>
+                        <p style="color: #a0aec0; font-size: 0.9rem; margin: 0.5rem 0 0;">
+                            Configura API keys en el archivo .env para obtener datos reales
+                        </p>
+                    </div>
+                \`;
+            }
+            
+            container.innerHTML = \`
+                <div class="ioc-result-card">
+                    <div class="ioc-result-header">
+                        <div>
+                            <div style="margin-bottom: 0.5rem;">
+                                <span class="ioc-type-badge">\${result.ioc_type.replace('_', ' ').toUpperCase()}</span>
+                            </div>
+                            <div class="ioc-value-display">\${result.ioc_value}</div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <div>
+                                <div style="text-align: center; margin-bottom: 0.5rem;">
+                                    <span style="color: #a0aec0; font-size: 0.9rem;">Reputación</span>
+                                </div>
+                                <div class="reputation-score \${reputationClass}">
+                                    \${result.reputation_score}/100
+                                </div>
+                            </div>
+                            <div class="verdict-badge \${verdictClass}">
+                                \${result.verdict}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    \${result.country || result.malware_family ? \`
+                        <div style="display: flex; gap: 2rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                            \${result.country ? \`
+                                <div>
+                                    <span style="color: #a0aec0;">País:</span>
+                                    <span style="color: #00ff7f; margin-left: 0.5rem;">\${result.country}</span>
+                                </div>
+                            \` : ''}
+                            \${result.malware_family ? \`
+                                <div>
+                                    <span style="color: #a0aec0;">Familia de Malware:</span>
+                                    <span style="color: #ff453a; margin-left: 0.5rem;">\${result.malware_family}</span>
+                                </div>
+                            \` : ''}
+                        </div>
+                    \` : ''}
+                    
+                    <div style="margin-bottom: 1rem;">
+                        <h4 style="color: #00ff7f; margin-bottom: 0.5rem;">
+                            <i class="fas fa-shield-alt"></i> Fuentes Consultadas (\${result.sources.length})
+                        </h4>
+                        \${sourcesHtml}
+                    </div>
+                </div>
+            \`;
+        }
+
+        function getReputationClass(score) {
+            if (score >= 70) return 'reputation-high';
+            if (score >= 40) return 'reputation-medium';
+            return 'reputation-low';
+        }
+
+        function getSourceLogo(source) {
+            const logos = {
+                'VirusTotal': 'VT',
+                'IBM X-Force': 'XF',
+                'OTX AlienVault': 'OTX',
+                'MalwareBazaar': 'MB',
+                'Hybrid Analysis': 'HA',
+                'Public Sources': 'PS'
+            };
+            return logos[source] || source.substring(0, 2).toUpperCase();
+        }
+
+        function getSourceDetails(source, details) {
+            const sourceDetails = details[source.toLowerCase().replace(/[^a-z]/g, '_')] || 
+                                details[source.toLowerCase().replace(' ', '_')] || 
+                                details[source] || {};
+            
+            if (Object.keys(sourceDetails).length === 0) {
+                return '<p style="color: #a0aec0; font-size: 0.9rem;">Sin detalles adicionales</p>';
+            }
+            
+            let detailsHtml = '';
+            
+            if (source === 'VirusTotal') {
+                detailsHtml = \`
+                    <p style="color: #a0aec0; font-size: 0.9rem;">
+                        Detectado por \${sourceDetails.engines_detected || 0} de \${sourceDetails.total_engines || 0} motores
+                    </p>
+                \`;
+            } else if (source === 'IBM X-Force') {
+                detailsHtml = \`
+                    <p style="color: #a0aec0; font-size: 0.9rem;">
+                        Risk Score: \${sourceDetails.risk_score || 'N/A'}
+                    </p>
+                \`;
+            } else if (source === 'OTX AlienVault') {
+                detailsHtml = \`
+                    <p style="color: #a0aec0; font-size: 0.9rem;">
+                        Pulses: \${sourceDetails.pulses_count || 0}
+                    </p>
+                \`;
+            } else if (source === 'MalwareBazaar') {
+                detailsHtml = \`
+                    <p style="color: #a0aec0; font-size: 0.9rem;">
+                        \${sourceDetails.signature ? \`Signature: \${sourceDetails.signature}\` : 'Malware detectado'}
+                    </p>
+                \`;
+            }
+            
+            return detailsHtml || '<p style="color: #a0aec0; font-size: 0.9rem;">Datos disponibles</p>';
+        }
+
+
+
         function startAutoRefresh() {
             setInterval(async () => {
                 try {
@@ -3889,6 +4735,62 @@ def create_app():
                 'success': False,
                 'timestamp': datetime.utcnow().isoformat()
             }), 500
+    
+    @app.route('/api/ioc-search/sources')
+    def api_ioc_search_sources():
+        """API para obtener fuentes configuradas"""
+        try:
+            sources = []
+            
+            if scraper.api_config.VIRUSTOTAL_API_KEY:
+                sources.append('VirusTotal')
+            if scraper.api_config.IBM_XFORCE_API_KEY:
+                sources.append('IBM X-Force')
+            if scraper.api_config.OTX_API_KEY:
+                sources.append('OTX AlienVault')
+            if scraper.api_config.HYBRID_ANALYSIS_API_KEY:
+                sources.append('Hybrid Analysis')
+            
+            # MalwareBazaar no requiere API key
+            sources.append('MalwareBazaar')
+            
+            return jsonify({
+                'sources': sources,
+                'total_configured': len(sources)
+            })
+            
+        except Exception as e:
+            logger.error(f"Error obteniendo fuentes: {e}")
+            return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/ioc-search', methods=['POST'])
+    def api_ioc_search():
+        """API para búsqueda de IOCs en tiempo real"""
+        try:
+            data = request.get_json()
+            ioc_value = data.get('ioc', '').strip()
+            
+            if not ioc_value:
+                return jsonify({'error': 'IOC value is required'}), 400
+            
+            # Crear searcher y buscar
+            searcher = RealTimeIOCSearcher(scraper.api_config)
+            result = searcher.search_ioc(ioc_value)
+            
+            # Convertir el resultado a diccionario
+            result_dict = asdict(result)
+            
+            # Convertir datetime a string si existen
+            if result_dict.get('first_seen'):
+                result_dict['first_seen'] = result_dict['first_seen'].isoformat()
+            if result_dict.get('last_seen'):
+                result_dict['last_seen'] = result_dict['last_seen'].isoformat()
+            
+            return jsonify(result_dict)
+            
+        except Exception as e:
+            logger.error(f"Error en búsqueda de IOC: {e}")
+            return jsonify({'error': str(e)}), 500
     
     @app.route('/api/scrape', methods=['POST'])
     def api_scrape():
