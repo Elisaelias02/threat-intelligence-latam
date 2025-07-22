@@ -3591,6 +3591,44 @@ def create_app():
         let dashboardData = null;
         let currentSection = 'dashboard';
 
+
+        // Función de inicialización robusta
+        function initializeDashboard() {
+            console.log('🚀 Inicializando AEGIS Dashboard...');
+            
+            // Verificar que el DOM esté listo
+            if (document.readyState === 'loading') {
+                console.log('⏳ DOM aún cargando, esperando...');
+                document.addEventListener('DOMContentLoaded', initializeDashboard);
+                return;
+            }
+            
+            console.log('✅ DOM completamente cargado');
+            
+            // Dar un pequeño delay para asegurar que todo esté renderizado
+            setTimeout(() => {
+                setupNavigation();
+                loadDashboardData();
+                startAutoRefresh();
+                setupEventListeners();
+                console.log('✅ Dashboard inicializado correctamente');
+            }, 100);
+        }
+
+        // Múltiples puntos de entrada para asegurar inicialización
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeDashboard);
+        } else {
+            initializeDashboard();
+        }
+
+        // Fallback adicional
+        window.addEventListener('load', function() {
+            if (!window.dashboardInitialized) {
+                console.log('🔄 Fallback: Reinicializando dashboard...');
+                initializeDashboard();
+            }
+
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🚀 Inicializando AEGIS Dashboard...');
             setupNavigation();
@@ -3606,6 +3644,87 @@ def create_app():
         function setupNavigation() {
             console.log('🔧 Configurando navegación...');
             
+            // Verificar múltiples veces que los elementos existen
+            let attempts = 0;
+            const maxAttempts = 5;
+            
+            function trySetupNavigation() {
+                attempts++;
+                console.log(`🔍 Intento ${attempts}/${maxAttempts} de configurar navegación`);
+                
+                const navLinks = document.querySelectorAll('.nav-link');
+                const sections = document.querySelectorAll('.section');
+                
+                console.log(`📊 Encontrados ${navLinks.length} nav-links y ${sections.length} secciones`);
+                
+                if (navLinks.length === 0) {
+                    if (attempts < maxAttempts) {
+                        console.log(`⏳ No se encontraron nav-links, reintentando en 500ms...`);
+                        setTimeout(trySetupNavigation, 500);
+                        return;
+                    } else {
+                        console.error('❌ CRÍTICO: No se encontraron elementos .nav-link después de 5 intentos');
+                        console.error('🔍 Elementos disponibles:', document.querySelectorAll('*').length);
+                        return;
+                    }
+                }
+                
+                // Configurar event listeners
+                let successfulListeners = 0;
+                
+                navLinks.forEach((link, index) => {
+                    const sectionId = link.dataset.section;
+                    console.log(`🔗 Configurando nav-link ${index + 1}: "${sectionId}"`);
+                    
+                    if (!sectionId) {
+                        console.warn(`⚠️ Nav-link ${index + 1} no tiene data-section`);
+                        return;
+                    }
+                    
+                    // Remover listeners previos si existen
+                    link.removeEventListener('click', link._aegisClickHandler);
+                    
+                    // Crear nueva función handler
+                    link._aegisClickHandler = function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log(`🖱️ CLICK detectado en sección: "${sectionId}"`);
+                        showSection(sectionId);
+                    };
+                    
+                    // Agregar event listener
+                    link.addEventListener('click', link._aegisClickHandler);
+                    
+                    // Verificar que se agregó correctamente
+                    if (link._aegisClickHandler) {
+                        successfulListeners++;
+                        console.log(`✅ Listener agregado exitosamente para: ${sectionId}`);
+                    }
+                });
+                
+                console.log(`✅ Navegación configurada: ${successfulListeners}/${navLinks.length} listeners`);
+                window.dashboardInitialized = true;
+                
+                // Test inmediato
+                setTimeout(() => {
+                    console.log('🧪 Ejecutando test de navegación...');
+                    testNavigation();
+                }, 1000);
+            }
+            
+            trySetupNavigation();
+        }
+        
+        // Función de test para verificar que la navegación funciona
+        function testNavigation() {
+            const navLinks = document.querySelectorAll('.nav-link');
+            if (navLinks.length > 0) {
+                console.log(`🧪 Test: Simulando click en primera pestaña...`);
+                const firstLink = navLinks[0];
+                const sectionId = firstLink.dataset.section;
+                console.log(`🧪 Test: Navegando a "${sectionId}"`);
+                showSection(sectionId);
+            }
             // Verificar que los elementos existen
             const navLinks = document.querySelectorAll('.nav-link');
             const sections = document.querySelectorAll('.section');
