@@ -4,6 +4,7 @@
 
 Dashboard profesional de threat intelligence diseñado específicamente para la región de Latinoamérica, integrando múltiples fuentes de inteligencia de amenazas para proporcionar una visión completa del panorama de ciberseguridad.
 
+
 ### ✨ Características Principales
 
 - **🔄 Datos en Tiempo Real**: Integración con APIs oficiales de threat intelligence
@@ -63,6 +64,81 @@ HYBRID_ANALYSIS_API_KEY=tu_api_key_aqui
 
 # NVD (Opcional - para rate limiting mejorado)
 NVD_API_KEY=tu_api_key_aqui
+
+
+
+### ✨ Características Principales
+
+- **🔄 Datos en Tiempo Real**: Integración con APIs oficiales de threat intelligence
+- **🌎 Enfoque LATAM**: Filtrado específico para amenazas dirigidas a países latinoamericanos
+- **📊 Dashboard Interactivo**: Visualización moderna con gráficos y estadísticas en vivo
+- **🛡️ Múltiples Fuentes**: Integración con VirusTotal, MalwareBazaar, OTX, IBM X-Force, NVD
+- **⚡ Actualización Automática**: Sistema de recolección automática de IOCs y CVEs
+- **💾 Almacenamiento Flexible**: Soporte para MongoDB y almacenamiento en memoria
+
+
+### 🔌 Fuentes de Inteligencia Integradas
+
+### 🔎 Búsqueda de IOCs en Tiempo Real
+- **Panel dedicado**: Interfaz intuitiva para búsqueda de indicadores
+- **Detección automática**: Reconoce automáticamente el tipo de IOC (hash, IP, URL, dominio)
+- **Múltiples fuentes**: Consulta simultánea a todas las APIs configuradas
+- **Análisis consensuado**: Combina resultados para mayor precisión
+- **Información completa**: Reputación, país, familia de malware, detalles técnicos
+- **Validación de formato**: Verifica automáticamente la validez del IOC ingresado
+
+---
+
+
+#### APIs Profesionales (Requieren API Keys)
+- **VirusTotal**: Análisis de URLs, dominios, IPs y hashes maliciosos
+- **IBM X-Force Exchange**: Inteligencia corporativa de amenazas
+- **AlienVault OTX**: Pulsos colaborativos de threat intelligence
+- **Hybrid Analysis**: Análisis de malware en sandbox
+- **NVD**: Vulnerabilidades CVE del NIST
+
+#### Fuentes Abiertas (Sin API Keys)
+- **MalwareBazaar**: Muestras de malware de abuse.ch
+- **OpenPhish**: URLs de phishing verificadas
+- **PhishTank**: Base de datos colaborativa de phishing
+- **URLhaus**: URLs maliciosas de abuse.ch
+- **ThreatFox**: IOCs verificados de abuse.ch
+
+### 🛠️ Instalación y Configuración
+
+#### Requisitos Previos
+```bash
+- Python 3.8+
+- MongoDB (opcional)
+- Conexión a Internet
+```
+
+#### Instalación de Dependencias
+```bash
+pip install flask flask-cors pymongo requests beautifulsoup4 feedparser python-dotenv
+```
+
+#### Configuración de API Keys (Opcional)
+
+Crea un archivo `.env` en el directorio raíz con tus API keys:
+
+```env
+# VirusTotal (https://www.virustotal.com/gui/join-us)
+VIRUSTOTAL_API_KEY=tu_api_key_aqui
+
+# IBM X-Force Exchange (https://exchange.xforce.ibmcloud.com/)
+IBM_XFORCE_API_KEY=tu_api_key_aqui
+IBM_XFORCE_PASSWORD=tu_password_aqui
+
+# AlienVault OTX (https://otx.alienvault.com/)
+OTX_API_KEY=tu_api_key_aqui
+
+# Hybrid Analysis (https://www.hybrid-analysis.com/)
+HYBRID_ANALYSIS_API_KEY=tu_api_key_aqui
+
+# NVD (Opcional - para rate limiting mejorado)
+NVD_API_KEY=tu_api_key_aqui
+
 
 # MongoDB (Opcional)
 MONGO_URI=mongodb://localhost:27017/

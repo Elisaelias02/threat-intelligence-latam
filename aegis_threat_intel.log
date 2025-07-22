@@ -77,6 +77,7 @@
  * Running on http://127.0.0.1:5000
  * Running on http://172.30.0.2:5000
 2025-07-22 03:08:22,167 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+
 2025-07-22 03:28:36,403 - __main__ - INFO - Iniciando AEGIS Threat Intelligence System...
 2025-07-22 03:28:41,413 - __main__ - WARNING - MongoDB no disponible: localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms), Timeout: 5.0s, Topology Description: <TopologyDescription id: 687f0564dec6d795aa3e998f, topology_type: Unknown, servers: [<ServerDescription ('localhost', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>]>. Usando almacenamiento en memoria.
 2025-07-22 03:28:41,414 - __main__ - INFO - Sistema profesional de Threat Intelligence inicializado
@@ -783,3 +784,4 @@
 2025-07-22 03:37:28,856 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
 2025-07-22 03:37:33,662 - werkzeug - INFO - 127.0.0.1 - - [22/Jul/2025 03:37:33] "GET /api/stats HTTP/1.1" 200 -
 2025-07-22 03:37:39,406 - werkzeug - INFO - 127.0.0.1 - - [22/Jul/2025 03:37:39] "HEAD / HTTP/1.1" 200 -
+
