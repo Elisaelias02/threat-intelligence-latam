@@ -4615,7 +4615,9 @@ def create_app():
         </main>
     </div>
 
-    <script>
+    <script type="text/javascript">
+        // Cache buster para forzar recarga de JavaScript
+        console.log('🚀 AEGIS Dashboard JavaScript cargado:', new Date().toISOString());
         const COLORS = {
             primary: '#00ff7f',
             critical: '#ff453a',
@@ -4713,12 +4715,12 @@ def create_app():
                 attempts++;
                 console.log(`🔍 Intento ${attempts}/${maxAttempts} de configurar navegación`);
                 
-                const navLinks = document.querySelectorAll('.nav-link');
+                const navigationLinks = document.querySelectorAll('.nav-link');
                 const sections = document.querySelectorAll('.section');
                 
-                console.log(`📊 Encontrados ${navLinks.length} nav-links y ${sections.length} secciones`);
+                console.log(`📊 Encontrados ${navigationLinks.length} nav-links y ${sections.length} secciones`);
                 
-                if (navLinks.length === 0) {
+                if (navigationLinks.length === 0) {
                     if (attempts < maxAttempts) {
                         console.log(`⏳ No se encontraron nav-links, reintentando en 500ms...`);
                         setTimeout(trySetupNavigation, 500);
@@ -4733,7 +4735,7 @@ def create_app():
                 // Configurar event listeners
                 let successfulListeners = 0;
                 
-                navLinks.forEach((link, index) => {
+                navigationLinks.forEach((link, index) => {
                     const sectionId = link.dataset.section;
                     console.log(`🔗 Configurando nav-link ${index + 1}: "${sectionId}"`);
                     
@@ -4778,26 +4780,25 @@ def create_app():
         
         // Función de test para verificar que la navegación funciona
         function testNavigation() {
-            const navLinks = document.querySelectorAll('.nav-link');
-            if (navLinks.length > 0) {
+            const testNavLinks = document.querySelectorAll('.nav-link');
+            const sections = document.querySelectorAll('.section');
+            
+            if (testNavLinks.length > 0) {
                 console.log(`🧪 Test: Simulando click en primera pestaña...`);
-                const firstLink = navLinks[0];
+                const firstLink = testNavLinks[0];
                 const sectionId = firstLink.dataset.section;
                 console.log(`🧪 Test: Navegando a "${sectionId}"`);
                 showSection(sectionId);
             }
-            // Verificar que los elementos existen
-            const navLinks = document.querySelectorAll('.nav-link');
-            const sections = document.querySelectorAll('.section');
             
-            console.log(`Encontrados ${navLinks.length} nav-links y ${sections.length} secciones`);
+            console.log(`Encontrados ${testNavLinks.length} nav-links y ${sections.length} secciones`);
             
-            if (navLinks.length === 0) {
+            if (testNavLinks.length === 0) {
                 console.error('❌ No se encontraron elementos .nav-link');
                 return;
             }
             
-            navLinks.forEach((link, index) => {
+            testNavLinks.forEach((link, index) => {
                 const sectionId = link.dataset.section;
                 console.log(`Configurando nav-link ${index + 1}: ${sectionId}`);
                 
@@ -4831,8 +4832,8 @@ def create_app():
                 targetSection.classList.add('active');
                 
                 // Actualizar navegación visual
-                const navLinks = document.querySelectorAll('.nav-link');
-                navLinks.forEach(link => {
+                const sectionNavLinks = document.querySelectorAll('.nav-link');
+                sectionNavLinks.forEach(link => {
                     link.classList.remove('active');
                 });
                 
