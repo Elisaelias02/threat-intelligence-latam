@@ -2558,12 +2558,72 @@ class AegisStorage:
             campaigns_count = len(self.memory_campaigns) if self.use_memory else self.campaigns_collection.count_documents({})
             iocs_count = len(self.memory_iocs) if self.use_memory else self.iocs_collection.count_documents({})
             
+            logger.info(f"📊 Estado actual: {campaigns_count} campañas, {iocs_count} IOCs")
+            
+            # Verificar si los datos existentes son válidos y completos
             if campaigns_count == 0 and iocs_count == 0:
                 logger.info("No hay datos disponibles, generando datos de ejemplo...")
                 self._generate_sample_data()
+            else:
+                # Verificar que los datos existentes tengan la estructura correcta
+                valid_data = self._validate_existing_data()
+                if not valid_data:
+                    logger.warning("Datos existentes corruptos o incompletos, regenerando...")
+                    self._clear_corrupted_data()
+                    self._generate_sample_data()
+                else:
+                    logger.info("✅ Datos existentes válidos, manteniendo...")
                 
         except Exception as e:
             logger.error(f"Error verificando/generando datos de ejemplo: {e}")
+            # En caso de error, intentar generar datos básicos
+            try:
+                self._generate_sample_data()
+            except:
+                logger.error("No se pudieron generar datos de ejemplo")
+    
+    def _validate_existing_data(self):
+        """Valida que los datos existentes tengan estructura correcta"""
+        try:
+            if self.use_memory:
+                # Verificar que al menos una campaña tenga estructura completa
+                if self.memory_campaigns:
+                    sample_campaign = self.memory_campaigns[0]
+                    required_fields = ['id', 'name', 'description', 'severity', 'source']
+                    if not all(field in sample_campaign for field in required_fields):
+                        return False
+                
+                # Verificar que al menos un IOC tenga estructura completa  
+                if self.memory_iocs:
+                    sample_ioc = self.memory_iocs[0]
+                    required_fields = ['value', 'type', 'confidence', 'source']
+                    if not all(field in sample_ioc for field in required_fields):
+                        return False
+                        
+                return True
+            else:
+                # Para MongoDB, assumir válido si hay datos
+                return True
+                
+        except Exception as e:
+            logger.error(f"Error validando datos: {e}")
+            return False
+    
+    def _clear_corrupted_data(self):
+        """Limpia datos corruptos"""
+        try:
+            if self.use_memory:
+                self.memory_campaigns.clear()
+                self.memory_iocs.clear()
+                self.memory_cves.clear()
+                logger.info("🧹 Datos en memoria limpiados")
+            else:
+                self.campaigns_collection.delete_many({})
+                self.iocs_collection.delete_many({})
+                self.cves_collection.delete_many({})
+                logger.info("🧹 Datos en MongoDB limpiados")
+        except Exception as e:
+            logger.error(f"Error limpiando datos: {e}")
     
     def _generate_sample_data(self):
         """Genera datos de ejemplo para demostración"""
@@ -4050,15 +4110,38 @@ def create_app():
 
         async function loadDashboardData() {
             try {
+                console.log('🔄 Cargando datos del dashboard...');
+                
+                // Cargar estadísticas principales
                 const response = await fetch('/api/stats');
                 dashboardData = await response.json();
                 
+                console.log('📊 Datos del dashboard cargados:', dashboardData);
+                
+                // Actualizar estadísticas en pantalla
                 updateDashboardStats();
                 initCharts();
-                loadDashboardAlerts();
+                
+                // Cargar datos de cada sección
+                console.log('🔄 Cargando alertas...');
+                await loadDashboardAlerts();
+                
+                console.log('🔄 Cargando campañas...');
+                await loadCampaigns();
+                
+                console.log('🔄 Cargando IOCs...');
+                await loadIOCs();
+                
+                console.log('🔄 Cargando CVEs...');
+                await loadCVEs();
+                
+                console.log('✅ Todos los datos cargados correctamente');
                 
             } catch (error) {
-                console.error('Error cargando datos:', error);
+                console.error('❌ Error cargando datos:', error);
+                // Mostrar error en la UI
+                const errorMsg = `<p style="color: #ff453a;">Error cargando datos: ${error.message}</p>`;
+                document.getElementById('dashboardAlerts').innerHTML = errorMsg;
             }
         }
 
@@ -4256,6 +4339,12 @@ def create_app():
         async function loadCampaigns() {
             try {
                 const container = document.getElementById('campaignsTable');
+                
+                if (!container) {
+                    console.error('❌ Container campaignsTable no encontrado');
+                    return;
+                }
+                
                 container.innerHTML = '<div class="loading"></div> Cargando campañas...';
                 
                 const params = new URLSearchParams();
@@ -4267,8 +4356,15 @@ def create_app():
                 if (severity) params.append('severity', severity);
                 if (country) params.append('country', country);
                 
+                console.log('🔄 Cargando campañas...');
                 const response = await fetch(`/api/campaigns?${params}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const campaigns = await response.json();
+                console.log('📊 Campañas recibidas:', campaigns.length);
                 
                 if (campaigns.length === 0) {
                     container.innerHTML = '<p style="color: #a0aec0;">No se encontraron campañas</p>';
@@ -4312,14 +4408,23 @@ def create_app():
                 `;
                 
             } catch (error) {
-                console.error('Error cargando campañas:', error);
-                document.getElementById('campaignsTable').innerHTML = '<p style="color: #ff453a;">Error cargando campañas</p>';
+                console.error('❌ Error cargando campañas:', error);
+                const container = document.getElementById('campaignsTable');
+                if (container) {
+                    container.innerHTML = `<p style="color: #ff453a;">Error cargando campañas: ${error.message}</p>`;
+                }
             }
         }
 
         async function loadIOCs() {
             try {
                 const container = document.getElementById('iocsTable');
+                
+                if (!container) {
+                    console.error('❌ Container iocsTable no encontrado');
+                    return;
+                }
+                
                 container.innerHTML = '<div class="loading"></div> Cargando IOCs...';
                 
                 // Construir parámetros de filtro
@@ -4332,8 +4437,15 @@ def create_app():
                 if (confidenceFilter) params.append('confidence', confidenceFilter);
                 params.append('limit', limit);
                 
+                console.log('🔄 Cargando IOCs...');
                 const response = await fetch(`/api/iocs?${params}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 let allIOCs = await response.json();
+                console.log('📊 IOCs recibidos:', allIOCs.length);
                 
                 if (allIOCs.length === 0) {
                     container.innerHTML = '<p style="color: #a0aec0;">No se encontraron IOCs</p>';
@@ -4386,8 +4498,11 @@ def create_app():
                 `;
                 
             } catch (error) {
-                console.error('Error cargando IOCs:', error);
-                document.getElementById('iocsTable').innerHTML = '<p style="color: #ff453a;">Error cargando IOCs</p>';
+                console.error('❌ Error cargando IOCs:', error);
+                const container = document.getElementById('iocsTable');
+                if (container) {
+                    container.innerHTML = `<p style="color: #ff453a;">Error cargando IOCs: ${error.message}</p>`;
+                }
             }
         }
 
@@ -4486,6 +4601,12 @@ def create_app():
         async function loadCVEs() {
             try {
                 const container = document.getElementById('cvesTable');
+                
+                if (!container) {
+                    console.error('❌ Container cvesTable no encontrado');
+                    return;
+                }
+                
                 container.innerHTML = '<div class="loading"></div> Cargando CVEs...';
                 
                 const params = new URLSearchParams();
@@ -4495,8 +4616,15 @@ def create_app():
                 if (severity) params.append('severity', severity);
                 params.append('limit', limit);
                 
+                console.log('🔄 Cargando CVEs...');
                 const response = await fetch(`/api/cves?${params}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const cves = await response.json();
+                console.log('📊 CVEs recibidos:', cves.length);
                 
                 if (cves.length === 0) {
                     container.innerHTML = '<p style="color: #a0aec0;">No se encontraron CVEs</p>';
@@ -4562,8 +4690,11 @@ def create_app():
                 await loadCVEStats();
                 
             } catch (error) {
-                console.error('Error cargando CVEs:', error);
-                document.getElementById('cvesTable').innerHTML = '<p style="color: #ff453a;">Error cargando CVEs</p>';
+                console.error('❌ Error cargando CVEs:', error);
+                const container = document.getElementById('cvesTable');
+                if (container) {
+                    container.innerHTML = `<p style="color: #ff453a;">Error cargando CVEs: ${error.message}</p>`;
+                }
             }
         }
 
