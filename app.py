@@ -2624,6 +2624,14 @@ class AegisStorage:
                 logger.info("🧹 Datos en MongoDB limpiados")
         except Exception as e:
             logger.error(f"Error limpiando datos: {e}")
+
+            if campaigns_count == 0 and iocs_count == 0:
+                logger.info("No hay datos disponibles, generando datos de ejemplo...")
+                self._generate_sample_data()
+                
+        except Exception as e:
+            logger.error(f"Error verificando/generando datos de ejemplo: {e}")
+
     
     def _generate_sample_data(self):
         """Genera datos de ejemplo para demostración"""
@@ -4427,6 +4435,7 @@ def create_app():
                 
                 container.innerHTML = '<div class="loading"></div> Cargando IOCs...';
                 
+
                 // Construir parámetros de filtro
                 const params = new URLSearchParams();
                 const typeFilter = document.getElementById('iocTypeFilter')?.value;
@@ -4443,6 +4452,9 @@ def create_app():
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
+
+                const response = await fetch(`/api/iocs?${params}`);
+                let allIOCs = await response.json();
                 
                 let allIOCs = await response.json();
                 console.log('📊 IOCs recibidos:', allIOCs.length);
