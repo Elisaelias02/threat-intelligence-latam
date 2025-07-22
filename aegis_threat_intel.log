@@ -1,0 +1,79 @@
+2025-07-22 03:07:28,445 - __main__ - INFO - Iniciando AEGIS Threat Intelligence System...
+2025-07-22 03:07:33,455 - __main__ - WARNING - MongoDB no disponible: localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms), Timeout: 5.0s, Topology Description: <TopologyDescription id: 687f007068c3efe8d353a336, topology_type: Unknown, servers: [<ServerDescription ('localhost', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>]>. Usando almacenamiento en memoria.
+2025-07-22 03:07:33,455 - __main__ - INFO - Sistema profesional de Threat Intelligence inicializado
+2025-07-22 03:07:38,464 - __main__ - WARNING - MongoDB no disponible: localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms), Timeout: 5.0s, Topology Description: <TopologyDescription id: 687f007568c3efe8d353a337, topology_type: Unknown, servers: [<ServerDescription ('localhost', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>]>. Usando almacenamiento en memoria.
+2025-07-22 03:07:38,464 - __main__ - INFO - Sistema profesional de Threat Intelligence inicializado
+2025-07-22 03:07:38,464 - __main__ - INFO - === INICIANDO RECOLECCIÓN PROFESIONAL DE THREAT INTELLIGENCE ===
+2025-07-22 03:07:38,464 - __main__ - INFO - === INICIANDO RECOLECCIÓN PROFESIONAL DE THREAT INTELLIGENCE ===
+2025-07-22 03:07:38,464 - __main__ - INFO - Recolectando desde VirusTotal...
+2025-07-22 03:07:38,464 - __main__ - INFO - VirusTotal API key no configurada - generando datos demo
+2025-07-22 03:07:38,464 - __main__ - INFO - VirusTotal: 4 IOCs recolectados
+2025-07-22 03:07:40,465 - __main__ - INFO - Recolectando desde IBM X-Force...
+2025-07-22 03:07:40,465 - __main__ - INFO - IBM X-Force API credentials no configuradas - generando datos demo
+2025-07-22 03:07:40,465 - __main__ - INFO - IBM X-Force: 5 IOCs recolectados
+2025-07-22 03:07:42,465 - __main__ - INFO - Recolectando desde OTX AlienVault...
+2025-07-22 03:07:42,465 - __main__ - INFO - OTX API key no configurada - generando datos demo
+2025-07-22 03:07:42,465 - __main__ - INFO - OTX AlienVault: 5 IOCs recolectados
+2025-07-22 03:07:49,623 - __main__ - INFO - Iniciando AEGIS Threat Intelligence System...
+2025-07-22 03:07:54,632 - __main__ - WARNING - MongoDB no disponible: localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms), Timeout: 5.0s, Topology Description: <TopologyDescription id: 687f008588763a13c781504f, topology_type: Unknown, servers: [<ServerDescription ('localhost', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>]>. Usando almacenamiento en memoria.
+2025-07-22 03:07:54,633 - __main__ - INFO - Sistema profesional de Threat Intelligence inicializado
+2025-07-22 03:07:59,642 - __main__ - WARNING - MongoDB no disponible: localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms), Timeout: 5.0s, Topology Description: <TopologyDescription id: 687f008a88763a13c7815050, topology_type: Unknown, servers: [<ServerDescription ('localhost', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>]>. Usando almacenamiento en memoria.
+2025-07-22 03:07:59,642 - __main__ - INFO - Sistema profesional de Threat Intelligence inicializado
+2025-07-22 03:07:59,643 - __main__ - INFO - === INICIANDO RECOLECCIÓN PROFESIONAL DE THREAT INTELLIGENCE ===
+2025-07-22 03:07:59,643 - __main__ - INFO - === INICIANDO RECOLECCIÓN PROFESIONAL DE THREAT INTELLIGENCE ===
+2025-07-22 03:07:59,643 - __main__ - INFO - Recolectando desde VirusTotal...
+2025-07-22 03:07:59,643 - __main__ - INFO - VirusTotal API key no configurada - generando datos demo
+2025-07-22 03:07:59,643 - __main__ - INFO - VirusTotal: 4 IOCs recolectados
+2025-07-22 03:08:01,643 - __main__ - INFO - Recolectando desde IBM X-Force...
+2025-07-22 03:08:01,643 - __main__ - INFO - IBM X-Force API credentials no configuradas - generando datos demo
+2025-07-22 03:08:01,643 - __main__ - INFO - IBM X-Force: 5 IOCs recolectados
+2025-07-22 03:08:03,643 - __main__ - INFO - Recolectando desde OTX AlienVault...
+2025-07-22 03:08:03,644 - __main__ - INFO - OTX API key no configurada - generando datos demo
+2025-07-22 03:08:03,644 - __main__ - INFO - OTX AlienVault: 5 IOCs recolectados
+2025-07-22 03:08:05,644 - __main__ - INFO - Recolectando desde Hybrid Analysis...
+2025-07-22 03:08:05,644 - __main__ - INFO - Hybrid Analysis API key no configurada - saltando
+2025-07-22 03:08:05,644 - __main__ - INFO - Hybrid Analysis: 0 IOCs recolectados
+2025-07-22 03:08:07,644 - __main__ - INFO - Recolectando desde MalwareBazaar...
+2025-07-22 03:08:07,644 - __main__ - INFO - Consultando MalwareBazaar para IOCs...
+2025-07-22 03:08:08,082 - __main__ - INFO - MalwareBazaar: 5 IOCs recolectados
+2025-07-22 03:08:10,083 - __main__ - INFO - Recolectando desde NVD...
+2025-07-22 03:08:10,083 - __main__ - INFO - Consultando NVD para CVEs de los últimos 7 días...
+2025-07-22 03:08:10,292 - __main__ - INFO - NVD: 15 CVEs recolectados
+2025-07-22 03:08:10,294 - __main__ - INFO - NVD: 1 IOCs recolectados
+2025-07-22 03:08:12,294 - __main__ - INFO - Correlacionando IOCs entre fuentes...
+2025-07-22 03:08:12,294 - __main__ - INFO - Recolectando desde fuentes de scraping tradicionales...
+2025-07-22 03:08:12,294 - __main__ - INFO - Scrapeando OpenPhish...
+2025-07-22 03:08:12,785 - __main__ - INFO - OpenPhish: 300 URLs encontradas
+2025-07-22 03:08:12,789 - __main__ - INFO - OpenPhish: 31 IOCs de LATAM recolectados
+2025-07-22 03:08:14,790 - __main__ - INFO - Scrapeando PhishTank...
+2025-07-22 03:08:14,970 - __main__ - WARNING - HTTP 404 para http://data.phishtank.com/data/online-valid.csv
+2025-07-22 03:08:15,030 - __main__ - WARNING - HTTP 404 para http://data.phishtank.com/data/online-valid.csv
+2025-07-22 03:08:15,090 - __main__ - WARNING - HTTP 404 para http://data.phishtank.com/data/online-valid.csv
+2025-07-22 03:08:15,090 - __main__ - ERROR - No se pudo obtener datos de PhishTank
+2025-07-22 03:08:17,090 - __main__ - INFO - Scrapeando URLhaus...
+2025-07-22 03:08:17,148 - __main__ - WARNING - Error en request a https://urlhaus.feodotracker.abuse.ch/downloads/csv_recent/: HTTPSConnectionPool(host='urlhaus.feodotracker.abuse.ch', port=443): Max retries exceeded with url: /downloads/csv_recent/ (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x7f611e36ead0>: Failed to resolve 'urlhaus.feodotracker.abuse.ch' ([Errno -2] Name or service not known)"))
+2025-07-22 03:08:18,158 - __main__ - WARNING - Error en request a https://urlhaus.feodotracker.abuse.ch/downloads/csv_recent/: HTTPSConnectionPool(host='urlhaus.feodotracker.abuse.ch', port=443): Max retries exceeded with url: /downloads/csv_recent/ (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x7f611e36e990>: Failed to resolve 'urlhaus.feodotracker.abuse.ch' ([Errno -2] Name or service not known)"))
+2025-07-22 03:08:20,162 - __main__ - WARNING - Error en request a https://urlhaus.feodotracker.abuse.ch/downloads/csv_recent/: HTTPSConnectionPool(host='urlhaus.feodotracker.abuse.ch', port=443): Max retries exceeded with url: /downloads/csv_recent/ (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x7f611e36e0d0>: Failed to resolve 'urlhaus.feodotracker.abuse.ch' ([Errno -2] Name or service not known)"))
+2025-07-22 03:08:20,162 - __main__ - ERROR - No se pudo obtener datos de URLhaus
+2025-07-22 03:08:22,162 - __main__ - INFO - Creando campañas basadas en IOCs profesionales...
+2025-07-22 03:08:22,163 - __main__ - INFO - === RECOLECCIÓN PROFESIONAL COMPLETADA ===
+2025-07-22 03:08:22,163 - __main__ - INFO - IOCs totales: 51
+2025-07-22 03:08:22,163 - __main__ - INFO - Campañas creadas: 12
+2025-07-22 03:08:22,163 - __main__ - INFO - Campaña almacenada: Campaña Phishing - Virustotal (2 IOCs)
+2025-07-22 03:08:22,163 - __main__ - INFO - Campaña almacenada: Campaña C2 - Virustotal (1 IOCs)
+2025-07-22 03:08:22,163 - __main__ - INFO - Campaña almacenada: Campaña Malware - Virustotal (1 IOCs)
+2025-07-22 03:08:22,163 - __main__ - INFO - Campaña almacenada: Campaña Phishing - Ibm (3 IOCs)
+2025-07-22 03:08:22,163 - __main__ - INFO - Campaña almacenada: Campaña C2 - Ibm (1 IOCs)
+2025-07-22 03:08:22,163 - __main__ - INFO - Campaña almacenada: Campaña Malware - Ibm (1 IOCs)
+2025-07-22 03:08:22,163 - __main__ - INFO - Campaña almacenada: Campaña Phishing - Otx (3 IOCs)
+2025-07-22 03:08:22,163 - __main__ - INFO - Campaña almacenada: Campaña C2 - Otx (1 IOCs)
+2025-07-22 03:08:22,163 - __main__ - INFO - Campaña almacenada: Campaña Malware - Otx (1 IOCs)
+2025-07-22 03:08:22,163 - __main__ - INFO - Campaña almacenada: Campaña Mekotio - Malware (5 IOCs)
+2025-07-22 03:08:22,164 - __main__ - INFO - Campaña almacenada: Campaña Vulnerability - Nvd (1 IOCs)
+2025-07-22 03:08:22,164 - __main__ - INFO - Campaña almacenada: Campaña Phishing - Openphish (31 IOCs)
+2025-07-22 03:08:22,164 - __main__ - INFO - Iniciando servidor web del sistema AEGIS...
+2025-07-22 03:08:22,167 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.30.0.2:5000
+2025-07-22 03:08:22,167 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
