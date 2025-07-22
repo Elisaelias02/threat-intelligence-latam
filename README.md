@@ -13,7 +13,19 @@ Dashboard profesional de threat intelligence diseñado específicamente para la 
 - **⚡ Actualización Automática**: Sistema de recolección automática de IOCs y CVEs
 - **💾 Almacenamiento Flexible**: Soporte para MongoDB y almacenamiento en memoria
 
+
 ### 🔌 Fuentes de Inteligencia Integradas
+=======
+### 🔎 Búsqueda de IOCs en Tiempo Real
+- **Panel dedicado**: Interfaz intuitiva para búsqueda de indicadores
+- **Detección automática**: Reconoce automáticamente el tipo de IOC (hash, IP, URL, dominio)
+- **Múltiples fuentes**: Consulta simultánea a todas las APIs configuradas
+- **Análisis consensuado**: Combina resultados para mayor precisión
+- **Información completa**: Reputación, país, familia de malware, detalles técnicos
+- **Validación de formato**: Verifica automáticamente la validez del IOC ingresado
+
+---
+
 
 #### APIs Profesionales (Requieren API Keys)
 - **VirusTotal**: Análisis de URLs, dominios, IPs y hashes maliciosos
