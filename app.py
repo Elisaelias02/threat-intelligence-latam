@@ -2405,11 +2405,37 @@ class AegisStorage:
             
         except Exception as e:
             logger.error(f"Error obteniendo estadísticas: {e}")
-            return {
-                'total_campaigns': 0, 'total_iocs': 0, 'campaigns_by_severity': {},
-                'campaigns_by_source': {}, 'iocs_by_type': {}, 'iocs_by_country': {},
-                'malware_families': {}
-            }
+            # Devolver estadísticas mínimas para que el dashboard funcione
+            return self._get_default_stats()
+    
+    def _get_default_stats(self) -> Dict:
+        """Devuelve estadísticas por defecto cuando no hay datos"""
+        return {
+            'total_campaigns': 0,
+            'total_iocs': 0,
+            'campaigns_by_severity': {
+                'critical': 0,
+                'high': 0, 
+                'medium': 0,
+                'low': 0
+            },
+            'campaigns_by_source': {
+                'VirusTotal': 0,
+                'IBM X-Force': 0,
+                'OTX AlienVault': 0,
+                'MalwareBazaar': 0
+            },
+            'iocs_by_type': {
+                'url': 0,
+                'domain': 0,
+                'ip': 0,
+                'hash_sha256': 0
+            },
+            'iocs_by_country': {
+                'Unknown': 0
+            },
+            'malware_families': {}
+        }
     
     def export_to_csv(self, campaign_ids: List[str] = None) -> str:
         """Exporta datos a formato CSV"""
@@ -3566,52 +3592,148 @@ def create_app():
         let currentSection = 'dashboard';
 
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 Inicializando AEGIS Dashboard...');
             setupNavigation();
             loadDashboardData();
             startAutoRefresh();
+            
+            // Agregar event listeners adicionales
+            setupEventListeners();
+            
+            console.log('✅ Dashboard inicializado correctamente');
         });
 
         function setupNavigation() {
-            document.querySelectorAll('.nav-link').forEach(link => {
-                link.addEventListener('click', function() {
-                    const section = this.dataset.section;
-                    showSection(section);
+            console.log('🔧 Configurando navegación...');
+            
+            // Verificar que los elementos existen
+            const navLinks = document.querySelectorAll('.nav-link');
+            const sections = document.querySelectorAll('.section');
+            
+            console.log(`Encontrados ${navLinks.length} nav-links y ${sections.length} secciones`);
+            
+            if (navLinks.length === 0) {
+                console.error('❌ No se encontraron elementos .nav-link');
+                return;
+            }
+            
+            navLinks.forEach((link, index) => {
+                const sectionId = link.dataset.section;
+                console.log(`Configurando nav-link ${index + 1}: ${sectionId}`);
+                
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    console.log(`🔍 Click en sección: ${sectionId}`);
+                    showSection(sectionId);
                 });
             });
+            
+            console.log('✅ Navegación configurada');
         }
 
         function showSection(sectionId) {
-            document.querySelectorAll('.section').forEach(section => {
-                section.classList.remove('active');
-            });
+            console.log(`📱 Mostrando sección: ${sectionId}`);
             
-            document.getElementById(sectionId).classList.add('active');
-            
-            document.querySelectorAll('.nav-link').forEach(link => {
-                link.classList.remove('active');
-            });
-            document.querySelector(`[data-section="${sectionId}"]`).classList.add('active');
-            
-            currentSection = sectionId;
-            
-            switch(sectionId) {
-                case 'campaigns':
-                    loadCampaigns();
-                    break;
-                case 'iocs':
-                    loadIOCs();
-                    break;
-                case 'cves':
-                    loadCVEs();
-                    break;
-                case 'ioc-search':
-                    initIOCSearch();
-                    break;
-
-                case 'alerts':
-                    loadAlerts();
-                    break;
+            try {
+                // Remover clase active de todas las secciones
+                const sections = document.querySelectorAll('.section');
+                sections.forEach(section => {
+                    section.classList.remove('active');
+                });
+                
+                // Mostrar la sección seleccionada
+                const targetSection = document.getElementById(sectionId);
+                if (!targetSection) {
+                    console.error(`❌ Sección no encontrada: ${sectionId}`);
+                    return;
+                }
+                
+                targetSection.classList.add('active');
+                
+                // Actualizar navegación visual
+                const navLinks = document.querySelectorAll('.nav-link');
+                navLinks.forEach(link => {
+                    link.classList.remove('active');
+                });
+                
+                const activeNavLink = document.querySelector(`[data-section="${sectionId}"]`);
+                if (activeNavLink) {
+                    activeNavLink.classList.add('active');
+                } else {
+                    console.warn(`⚠️ Nav-link no encontrado para: ${sectionId}`);
+                }
+                
+                // Actualizar variable global
+                currentSection = sectionId;
+                
+                // Ejecutar función específica de la sección
+                switch(sectionId) {
+                    case 'dashboard':
+                        console.log('🏠 Cargando dashboard principal');
+                        loadDashboardData();
+                        break;
+                    case 'campaigns':
+                        console.log('🎯 Cargando campañas');
+                        loadCampaigns();
+                        break;
+                    case 'iocs':
+                        console.log('🔍 Cargando IOCs');
+                        loadIOCs();
+                        break;
+                    case 'cves':
+                        console.log('🐛 Cargando CVEs');
+                        loadCVEs();
+                        break;
+                    case 'ioc-search':
+                        console.log('🔎 Iniciando búsqueda de IOCs');
+                        initIOCSearch();
+                        break;
+                    case 'alerts':
+                        console.log('⚠️ Cargando alertas');
+                        loadAlerts();
+                        break;
+                    case 'export':
+                        console.log('📊 Sección de exportación');
+                        break;
+                    default:
+                        console.warn(`⚠️ Sección no reconocida: ${sectionId}`);
+                }
+                
+                console.log(`✅ Sección ${sectionId} cargada exitosamente`);
+                
+            } catch (error) {
+                console.error(`❌ Error mostrando sección ${sectionId}:`, error);
             }
+        }
+        
+        function setupEventListeners() {
+            // Event listener para búsqueda de campaña
+            const searchInput = document.getElementById('campaignSearch');
+            if (searchInput) {
+                let timeout;
+                searchInput.addEventListener('input', function() {
+                    clearTimeout(timeout);
+                    timeout = setTimeout(loadCampaigns, 500);
+                });
+            }
+            
+            // Event listeners para filtros de campaña
+            ['campaignSeverityFilter', 'campaignCountryFilter'].forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.addEventListener('change', loadCampaigns);
+                }
+            });
+            
+            // Event listeners para filtros de IOC
+            ['iocTypeFilter', 'iocConfidenceFilter'].forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.addEventListener('change', loadIOCs);
+                }
+            });
+            
+            console.log('✅ Event listeners configurados');
         }
 
         async function loadDashboardData() {
@@ -4258,7 +4380,8 @@ def create_app():
             if (/^[a-fA-F0-9]{64}$/.test(ioc)) return 'SHA256 Hash';
             
             // IP pattern
-            if (/^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(ioc)) {
+            const ipPattern = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+            if (ipPattern.test(ioc)) {
                 return 'Dirección IP';
             }
             
@@ -4268,7 +4391,8 @@ def create_app():
             }
             
             // Domain pattern
-            if (ioc.includes('.') && !ioc.startsWith('http') && !/[^a-zA-Z0-9.-]/.test(ioc)) {
+            const domainPattern = /[^a-zA-Z0-9.-]/;
+            if (ioc.includes('.') && !ioc.startsWith('http') && !domainPattern.test(ioc)) {
                 return 'Dominio';
             }
             
@@ -4528,31 +4652,7 @@ def create_app():
             });
         }
 
-        // Event listeners para filtros
-        document.addEventListener('DOMContentLoaded', function() {
-            const searchInput = document.getElementById('campaignSearch');
-            if (searchInput) {
-                let timeout;
-                searchInput.addEventListener('input', function() {
-                    clearTimeout(timeout);
-                    timeout = setTimeout(loadCampaigns, 500);
-                });
-            }
-            
-            ['campaignSeverityFilter', 'campaignCountryFilter'].forEach(id => {
-                const element = document.getElementById(id);
-                if (element) {
-                    element.addEventListener('change', loadCampaigns);
-                }
-            });
-            
-            ['iocTypeFilter', 'iocConfidenceFilter'].forEach(id => {
-                const element = document.getElementById(id);
-                if (element) {
-                    element.addEventListener('change', loadIOCs);
-                }
-            });
-        });
+        // Los event listeners ahora están configurados en setupEventListeners()
     </script>
 </body>
 </html>
