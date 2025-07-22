@@ -3591,6 +3591,7 @@ def create_app():
         let dashboardData = null;
         let currentSection = 'dashboard';
 
+
         // Función de inicialización robusta
         function initializeDashboard() {
             console.log('🚀 Inicializando AEGIS Dashboard...');
@@ -3627,6 +3628,17 @@ def create_app():
                 console.log('🔄 Fallback: Reinicializando dashboard...');
                 initializeDashboard();
             }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 Inicializando AEGIS Dashboard...');
+            setupNavigation();
+            loadDashboardData();
+            startAutoRefresh();
+            
+            // Agregar event listeners adicionales
+            setupEventListeners();
+            
+            console.log('✅ Dashboard inicializado correctamente');
         });
 
         function setupNavigation() {
@@ -3713,6 +3725,29 @@ def create_app():
                 console.log(`🧪 Test: Navegando a "${sectionId}"`);
                 showSection(sectionId);
             }
+            // Verificar que los elementos existen
+            const navLinks = document.querySelectorAll('.nav-link');
+            const sections = document.querySelectorAll('.section');
+            
+            console.log(`Encontrados ${navLinks.length} nav-links y ${sections.length} secciones`);
+            
+            if (navLinks.length === 0) {
+                console.error('❌ No se encontraron elementos .nav-link');
+                return;
+            }
+            
+            navLinks.forEach((link, index) => {
+                const sectionId = link.dataset.section;
+                console.log(`Configurando nav-link ${index + 1}: ${sectionId}`);
+                
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    console.log(`🔍 Click en sección: ${sectionId}`);
+                    showSection(sectionId);
+                });
+            });
+            
+            console.log('✅ Navegación configurada');
         }
 
         function showSection(sectionId) {
