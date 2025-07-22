@@ -4669,6 +4669,7 @@ def create_app():
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🚀 Inicializando AEGIS Dashboard...');
             setupNavigation();
+            setupEventListeners(); // Configurar event listeners
             loadDashboardData();
             startAutoRefresh();
 
