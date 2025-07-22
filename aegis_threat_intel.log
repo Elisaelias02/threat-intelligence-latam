@@ -784,4 +784,74 @@
 2025-07-22 03:37:28,856 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
 2025-07-22 03:37:33,662 - werkzeug - INFO - 127.0.0.1 - - [22/Jul/2025 03:37:33] "GET /api/stats HTTP/1.1" 200 -
 2025-07-22 03:37:39,406 - werkzeug - INFO - 127.0.0.1 - - [22/Jul/2025 03:37:39] "HEAD / HTTP/1.1" 200 -
-
+2025-07-22 04:32:09,828 - __main__ - INFO - Iniciando AEGIS Threat Intelligence System...
+2025-07-22 04:32:14,839 - __main__ - WARNING - MongoDB no disponible: localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms), Timeout: 5.0s, Topology Description: <TopologyDescription id: 687f1449bcf3931439e951cb, topology_type: Unknown, servers: [<ServerDescription ('localhost', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>]>. Usando almacenamiento en memoria.
+2025-07-22 04:32:14,839 - __main__ - INFO - Sistema profesional de Threat Intelligence inicializado
+2025-07-22 04:32:19,848 - __main__ - WARNING - MongoDB no disponible: localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms), Timeout: 5.0s, Topology Description: <TopologyDescription id: 687f144ebcf3931439e951cc, topology_type: Unknown, servers: [<ServerDescription ('localhost', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>]>. Usando almacenamiento en memoria.
+2025-07-22 04:32:19,849 - __main__ - INFO - Sistema profesional de Threat Intelligence inicializado
+2025-07-22 04:32:19,849 - __main__ - INFO - === INICIANDO RECOLECCIÓN PROFESIONAL DE THREAT INTELLIGENCE ===
+2025-07-22 04:32:19,849 - __main__ - INFO - === INICIANDO RECOLECCIÓN PROFESIONAL DE THREAT INTELLIGENCE ===
+2025-07-22 04:32:19,849 - __main__ - INFO - Recolectando desde VirusTotal...
+2025-07-22 04:32:19,849 - __main__ - INFO - VirusTotal API key no configurada - generando datos demo
+2025-07-22 04:32:19,849 - __main__ - INFO - VirusTotal: 4 IOCs recolectados
+2025-07-22 04:32:21,849 - __main__ - INFO - Recolectando desde IBM X-Force...
+2025-07-22 04:32:21,849 - __main__ - INFO - IBM X-Force API credentials no configuradas - generando datos demo
+2025-07-22 04:32:21,849 - __main__ - INFO - IBM X-Force: 5 IOCs recolectados
+2025-07-22 04:32:23,850 - __main__ - INFO - Recolectando desde OTX AlienVault...
+2025-07-22 04:32:23,850 - __main__ - INFO - OTX API key no configurada - generando datos demo
+2025-07-22 04:32:23,850 - __main__ - INFO - OTX AlienVault: 5 IOCs recolectados
+2025-07-22 04:32:25,850 - __main__ - INFO - Recolectando desde Hybrid Analysis...
+2025-07-22 04:32:25,850 - __main__ - INFO - Hybrid Analysis API key no configurada - saltando
+2025-07-22 04:32:25,850 - __main__ - INFO - Hybrid Analysis: 0 IOCs recolectados
+2025-07-22 04:32:27,850 - __main__ - INFO - Recolectando desde MalwareBazaar...
+2025-07-22 04:32:27,851 - __main__ - INFO - Consultando MalwareBazaar para IOCs...
+2025-07-22 04:32:28,285 - __main__ - INFO - MalwareBazaar: 5 IOCs recolectados
+2025-07-22 04:32:30,285 - __main__ - INFO - Recolectando desde NVD...
+2025-07-22 04:32:30,285 - __main__ - INFO - Consultando NVD para CVEs de los últimos 7 días...
+2025-07-22 04:32:30,622 - __main__ - INFO - NVD: 15 CVEs recolectados
+2025-07-22 04:32:30,624 - __main__ - INFO - NVD: 1 IOCs recolectados
+2025-07-22 04:32:32,624 - __main__ - INFO - Correlacionando IOCs entre fuentes...
+2025-07-22 04:32:32,625 - __main__ - INFO - Recolectando desde fuentes de scraping tradicionales...
+2025-07-22 04:32:32,625 - __main__ - INFO - Scrapeando OpenPhish...
+2025-07-22 04:32:33,128 - __main__ - INFO - OpenPhish: 300 URLs encontradas
+2025-07-22 04:32:33,132 - __main__ - INFO - OpenPhish: 31 IOCs de LATAM recolectados
+2025-07-22 04:32:35,133 - __main__ - INFO - Scrapeando PhishTank...
+2025-07-22 04:32:35,394 - __main__ - WARNING - HTTP 404 para http://data.phishtank.com/data/online-valid.csv
+2025-07-22 04:32:35,448 - __main__ - WARNING - HTTP 404 para http://data.phishtank.com/data/online-valid.csv
+2025-07-22 04:32:35,494 - __main__ - WARNING - HTTP 404 para http://data.phishtank.com/data/online-valid.csv
+2025-07-22 04:32:35,494 - __main__ - ERROR - No se pudo obtener datos de PhishTank
+2025-07-22 04:32:37,494 - __main__ - INFO - Scrapeando URLhaus...
+2025-07-22 04:32:37,517 - __main__ - WARNING - Error en request a https://urlhaus.feodotracker.abuse.ch/downloads/csv_recent/: HTTPSConnectionPool(host='urlhaus.feodotracker.abuse.ch', port=443): Max retries exceeded with url: /downloads/csv_recent/ (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x7f58adbe6e90>: Failed to resolve 'urlhaus.feodotracker.abuse.ch' ([Errno -2] Name or service not known)"))
+2025-07-22 04:32:38,558 - __main__ - WARNING - Error en request a https://urlhaus.feodotracker.abuse.ch/downloads/csv_recent/: HTTPSConnectionPool(host='urlhaus.feodotracker.abuse.ch', port=443): Max retries exceeded with url: /downloads/csv_recent/ (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x7f58adbe6710>: Failed to resolve 'urlhaus.feodotracker.abuse.ch' ([Errno -2] Name or service not known)"))
+2025-07-22 04:32:40,562 - __main__ - WARNING - Error en request a https://urlhaus.feodotracker.abuse.ch/downloads/csv_recent/: HTTPSConnectionPool(host='urlhaus.feodotracker.abuse.ch', port=443): Max retries exceeded with url: /downloads/csv_recent/ (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x7f58adbe5950>: Failed to resolve 'urlhaus.feodotracker.abuse.ch' ([Errno -2] Name or service not known)"))
+2025-07-22 04:32:40,562 - __main__ - ERROR - No se pudo obtener datos de URLhaus
+2025-07-22 04:32:42,562 - __main__ - INFO - Creando campañas basadas en IOCs profesionales...
+2025-07-22 04:32:42,563 - __main__ - INFO - === RECOLECCIÓN PROFESIONAL COMPLETADA ===
+2025-07-22 04:32:42,563 - __main__ - INFO - IOCs totales: 51
+2025-07-22 04:32:42,563 - __main__ - INFO - Campañas creadas: 12
+2025-07-22 04:32:42,563 - __main__ - INFO - Campaña almacenada: Campaña Phishing - Virustotal (2 IOCs)
+2025-07-22 04:32:42,563 - __main__ - INFO - Campaña almacenada: Campaña C2 - Virustotal (1 IOCs)
+2025-07-22 04:32:42,563 - __main__ - INFO - Campaña almacenada: Campaña Malware - Virustotal (1 IOCs)
+2025-07-22 04:32:42,563 - __main__ - INFO - Campaña almacenada: Campaña Phishing - Ibm (3 IOCs)
+2025-07-22 04:32:42,563 - __main__ - INFO - Campaña almacenada: Campaña C2 - Ibm (1 IOCs)
+2025-07-22 04:32:42,563 - __main__ - INFO - Campaña almacenada: Campaña Malware - Ibm (1 IOCs)
+2025-07-22 04:32:42,563 - __main__ - INFO - Campaña almacenada: Campaña Phishing - Otx (3 IOCs)
+2025-07-22 04:32:42,564 - __main__ - INFO - Campaña almacenada: Campaña C2 - Otx (1 IOCs)
+2025-07-22 04:32:42,564 - __main__ - INFO - Campaña almacenada: Campaña Malware - Otx (1 IOCs)
+2025-07-22 04:32:42,564 - __main__ - INFO - Campaña almacenada: Campaña Grandoreiro - Malware (5 IOCs)
+2025-07-22 04:32:42,564 - __main__ - INFO - Campaña almacenada: Campaña Vulnerability - Nvd (1 IOCs)
+2025-07-22 04:32:42,565 - __main__ - INFO - Campaña almacenada: Campaña Phishing - Openphish (31 IOCs)
+2025-07-22 04:32:42,565 - __main__ - INFO - Iniciando servidor web del sistema AEGIS...
+2025-07-22 04:32:42,566 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.30.0.2:5000
+2025-07-22 04:32:42,566 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-07-22 04:32:44,400 - werkzeug - INFO - 127.0.0.1 - - [22/Jul/2025 04:32:44] "GET /api/stats HTTP/1.1" 200 -
+2025-07-22 04:32:49,565 - werkzeug - INFO - 127.0.0.1 - - [22/Jul/2025 04:32:49] "GET / HTTP/1.1" 200 -
+2025-07-22 04:33:07,732 - werkzeug - INFO - 127.0.0.1 - - [22/Jul/2025 04:33:07] "GET / HTTP/1.1" 200 -
+2025-07-22 04:33:37,509 - werkzeug - INFO - 127.0.0.1 - - [22/Jul/2025 04:33:37] "GET / HTTP/1.1" 200 -
+2025-07-22 04:34:11,367 - werkzeug - INFO - 127.0.0.1 - - [22/Jul/2025 04:34:11] "GET / HTTP/1.1" 200 -
+2025-07-22 04:34:27,510 - werkzeug - INFO - 127.0.0.1 - - [22/Jul/2025 04:34:27] "GET /api/stats HTTP/1.1" 200 -
+2025-07-22 04:34:27,527 - werkzeug - INFO - 127.0.0.1 - - [22/Jul/2025 04:34:27] "GET /api/campaigns HTTP/1.1" 200 -
+2025-07-22 04:34:27,542 - werkzeug - INFO - 127.0.0.1 - - [22/Jul/2025 04:34:27] "GET /api/alerts HTTP/1.1" 200 -
