@@ -2218,6 +2218,58 @@ class AegisStorage:
             logger.error(f"Error obteniendo CVEs: {e}")
             return []
     
+    def get_recent_iocs(self, limit: int = 100) -> List[Dict]:
+        """Obtiene IOCs recientes ordenados por fecha de último avistamiento"""
+        try:
+            if self.use_memory:
+                iocs = self.memory_iocs.copy()
+                
+                # Convertir IOCs a formato dict si es necesario
+                formatted_iocs = []
+                for ioc in iocs:
+                    if hasattr(ioc, '__dict__'):
+                        # Es un objeto IOC
+                        ioc_dict = {
+                            'value': ioc.value,
+                            'type': ioc.type,
+                            'confidence': ioc.confidence,
+                            'first_seen': ioc.first_seen.isoformat() if hasattr(ioc.first_seen, 'isoformat') else str(ioc.first_seen),
+                            'last_seen': ioc.last_seen.isoformat() if hasattr(ioc.last_seen, 'isoformat') else str(ioc.last_seen),
+                            'source': ioc.source,
+                            'tags': ioc.tags,
+                            'threat_type': ioc.threat_type,
+                            'malware_family': ioc.malware_family,
+                            'country': ioc.country
+                        }
+                    else:
+                        # Ya es un dict
+                        ioc_dict = ioc
+                    
+                    formatted_iocs.append(ioc_dict)
+                
+                # Ordenar por last_seen (más reciente primero)
+                formatted_iocs.sort(key=lambda x: x.get('last_seen', ''), reverse=True)
+                return formatted_iocs[:limit]
+                
+            else:
+                iocs = list(self.iocs_collection.find({})
+                           .sort("last_seen", -1)
+                           .limit(limit))
+                
+                for ioc in iocs:
+                    ioc['_id'] = str(ioc['_id'])
+                    # Asegurar formato de fechas
+                    if 'first_seen' in ioc and hasattr(ioc['first_seen'], 'isoformat'):
+                        ioc['first_seen'] = ioc['first_seen'].isoformat()
+                    if 'last_seen' in ioc and hasattr(ioc['last_seen'], 'isoformat'):
+                        ioc['last_seen'] = ioc['last_seen'].isoformat()
+                
+                return iocs
+                
+        except Exception as e:
+            logger.error(f"Error obteniendo IOCs: {e}")
+            return []
+    
     def get_cve_statistics(self) -> Dict:
         """Obtiene estadísticas de CVEs"""
         try:
@@ -2498,6 +2550,144 @@ class AegisStorage:
         except Exception as e:
             logger.error(f"Error exportando a CSV: {e}")
             return ""
+    
+    def ensure_sample_data(self):
+        """Genera datos de ejemplo si no hay datos reales disponibles"""
+        try:
+            # Verificar si ya hay datos
+            campaigns_count = len(self.memory_campaigns) if self.use_memory else self.campaigns_collection.count_documents({})
+            iocs_count = len(self.memory_iocs) if self.use_memory else self.iocs_collection.count_documents({})
+            
+            if campaigns_count == 0 and iocs_count == 0:
+                logger.info("No hay datos disponibles, generando datos de ejemplo...")
+                self._generate_sample_data()
+                
+        except Exception as e:
+            logger.error(f"Error verificando/generando datos de ejemplo: {e}")
+    
+    def _generate_sample_data(self):
+        """Genera datos de ejemplo para demostración"""
+        from datetime import datetime, timedelta
+        import random
+        
+        sample_campaigns = [
+            {
+                'id': 'apt-sample-001',
+                'name': 'APT-Sample-Campaign',
+                'description': 'Campaña de ejemplo para demostración del sistema',
+                'severity': 'medium',
+                'source': 'Sistema de Ejemplo',
+                'countries_affected': ['US', 'CA', 'MX'],
+                'malware_families': ['TrojanSample', 'AdwareSample'],
+                'first_seen': datetime.utcnow() - timedelta(days=7),
+                'last_seen': datetime.utcnow() - timedelta(hours=2),
+                'iocs': [
+                    {
+                        'value': 'example.malicious-domain.com',
+                        'type': 'domain',
+                        'confidence': 85,
+                        'first_seen': datetime.utcnow() - timedelta(days=5),
+                        'last_seen': datetime.utcnow() - timedelta(hours=1),
+                        'source': 'Sistema de Ejemplo',
+                        'tags': ['phishing', 'malware-c2'],
+                        'threat_type': 'command_control',
+                        'malware_family': 'TrojanSample',
+                        'country': 'US'
+                    },
+                    {
+                        'value': '192.0.2.100',
+                        'type': 'ip',
+                        'confidence': 90,
+                        'first_seen': datetime.utcnow() - timedelta(days=3),
+                        'last_seen': datetime.utcnow() - timedelta(minutes=30),
+                        'source': 'Sistema de Ejemplo',
+                        'tags': ['botnet', 'c2-server'],
+                        'threat_type': 'command_control',
+                        'malware_family': 'TrojanSample',
+                        'country': 'CA'
+                    }
+                ]
+            },
+            {
+                'id': 'phishing-sample-002',
+                'name': 'Phishing-Campaign-Sample',
+                'description': 'Campaña de phishing de ejemplo',
+                'severity': 'high',
+                'source': 'Sistema de Ejemplo',
+                'countries_affected': ['MX', 'AR', 'CL'],
+                'malware_families': ['PhishKit'],
+                'first_seen': datetime.utcnow() - timedelta(days=2),
+                'last_seen': datetime.utcnow() - timedelta(minutes=15),
+                'iocs': [
+                    {
+                        'value': 'http://example-phishing.test/login',
+                        'type': 'url',
+                        'confidence': 95,
+                        'first_seen': datetime.utcnow() - timedelta(days=2),
+                        'last_seen': datetime.utcnow() - timedelta(minutes=15),
+                        'source': 'Sistema de Ejemplo',
+                        'tags': ['phishing', 'banking'],
+                        'threat_type': 'phishing',
+                        'malware_family': 'PhishKit',
+                        'country': 'MX'
+                    }
+                ]
+            }
+        ]
+        
+        # Almacenar campañas de ejemplo
+        for campaign_data in sample_campaigns:
+            # Extraer IOCs antes de almacenar la campaña
+            iocs_data = campaign_data.pop('iocs', [])
+            
+            # Crear objeto Campaign
+            campaign = Campaign(
+                id=campaign_data['id'],
+                name=campaign_data['name'],
+                description=campaign_data['description'],
+                severity=campaign_data['severity'],
+                source=campaign_data['source'],
+                countries_affected=campaign_data['countries_affected'],
+                malware_families=campaign_data['malware_families'],
+                first_seen=campaign_data['first_seen'],
+                last_seen=campaign_data['last_seen'],
+                iocs=[]
+            )
+            
+            # Almacenar campaña
+            if self.use_memory:
+                campaign_dict = asdict(campaign)
+                campaign_dict['iocs'] = []
+                self.memory_campaigns.append(campaign_dict)
+            else:
+                campaign_dict = asdict(campaign)
+                self.campaigns_collection.insert_one(campaign_dict)
+            
+            # Crear y almacenar IOCs
+            for ioc_data in iocs_data:
+                ioc = IOC(
+                    value=ioc_data['value'],
+                    type=ioc_data['type'],
+                    confidence=ioc_data['confidence'],
+                    first_seen=ioc_data['first_seen'],
+                    last_seen=ioc_data['last_seen'],
+                    source=ioc_data['source'],
+                    tags=ioc_data['tags'],
+                    threat_type=ioc_data['threat_type'],
+                    malware_family=ioc_data['malware_family'],
+                    country=ioc_data['country']
+                )
+                
+                if self.use_memory:
+                    ioc_dict = asdict(ioc)
+                    ioc_dict['campaign_id'] = campaign.id
+                    self.memory_iocs.append(ioc_dict)
+                else:
+                    ioc_dict = asdict(ioc)
+                    ioc_dict['campaign_id'] = campaign.id
+                    self.iocs_collection.insert_one(ioc_dict)
+        
+        logger.info(f"Datos de ejemplo generados: {len(sample_campaigns)} campañas")
 
 # =====================================================
 # SISTEMA DE ALERTAS
@@ -2581,6 +2771,9 @@ def create_app():
     storage = AegisStorage(config)
     scraper = ProfessionalThreatIntelligence(config)
     alert_system = AegisAlertSystem(config)
+    
+    # Asegurar que hay datos disponibles para demostración
+    storage.ensure_sample_data()
     
     DASHBOARD_TEMPLATE = '''
 <!DOCTYPE html>
@@ -4013,10 +4206,28 @@ def create_app():
 
         async function loadDashboardAlerts() {
             try {
+                const container = document.getElementById('dashboardAlerts');
+                
+                if (!container) {
+                    console.error('Container dashboardAlerts no encontrado');
+                    return;
+                }
+                
+                container.innerHTML = '<div class="loading"></div> Cargando alertas...';
+                
                 const response = await fetch('/api/alerts');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const alerts = await response.json();
                 
-                const container = document.getElementById('dashboardAlerts');
+                if (!Array.isArray(alerts)) {
+                    console.error('Las alertas no son un array:', alerts);
+                    container.innerHTML = '<p style="color: #ff453a;">Error: Formato de datos incorrecto</p>';
+                    return;
+                }
                 
                 if (alerts.length === 0) {
                     container.innerHTML = '<p style="color: #a0aec0;">No hay alertas críticas actualmente</p>';
@@ -4026,15 +4237,19 @@ def create_app():
                 container.innerHTML = alerts.slice(0, 5).map(alert => `
                     <div class="alert-item">
                         <div class="alert-header">
-                            <span class="alert-title">${alert.title}</span>
-                            <span class="alert-time">${formatTimestamp(alert.timestamp)}</span>
+                            <span class="alert-title">${alert.title || 'Alerta sin título'}</span>
+                            <span class="alert-time">${alert.timestamp ? formatTimestamp(alert.timestamp) : 'Fecha desconocida'}</span>
                         </div>
-                        <p style="margin: 0; color: #a0aec0; font-size: 0.9rem;">${alert.description}</p>
+                        <p style="margin: 0; color: #a0aec0; font-size: 0.9rem;">${alert.description || 'Sin descripción'}</p>
                     </div>
                 `).join('');
                 
             } catch (error) {
                 console.error('Error cargando alertas:', error);
+                const container = document.getElementById('dashboardAlerts');
+                if (container) {
+                    container.innerHTML = `<p style="color: #ff453a;">Error cargando alertas: ${error.message}</p>`;
+                }
             }
         }
 
@@ -4107,28 +4322,18 @@ def create_app():
                 const container = document.getElementById('iocsTable');
                 container.innerHTML = '<div class="loading"></div> Cargando IOCs...';
                 
-                const response = await fetch('/api/campaigns');
-                const campaigns = await response.json();
-                
-                let allIOCs = [];
-                campaigns.forEach(campaign => {
-                    if (campaign.iocs) {
-                        campaign.iocs.forEach(ioc => {
-                            ioc.campaign_name = campaign.name;
-                            allIOCs.push(ioc);
-                        });
-                    }
-                });
-                
+                // Construir parámetros de filtro
+                const params = new URLSearchParams();
                 const typeFilter = document.getElementById('iocTypeFilter')?.value;
                 const confidenceFilter = document.getElementById('iocConfidenceFilter')?.value;
+                const limit = document.getElementById('iocLimitFilter')?.value || '100';
                 
-                if (typeFilter) {
-                    allIOCs = allIOCs.filter(ioc => ioc.type === typeFilter);
-                }
-                if (confidenceFilter) {
-                    allIOCs = allIOCs.filter(ioc => ioc.confidence >= parseInt(confidenceFilter));
-                }
+                if (typeFilter) params.append('type', typeFilter);
+                if (confidenceFilter) params.append('confidence', confidenceFilter);
+                params.append('limit', limit);
+                
+                const response = await fetch(`/api/iocs?${params}`);
+                let allIOCs = await response.json();
                 
                 if (allIOCs.length === 0) {
                     container.innerHTML = '<p style="color: #a0aec0;">No se encontraron IOCs</p>';
@@ -4805,7 +5010,55 @@ def create_app():
         except Exception as e:
             logger.error(f"Error en API campañas: {e}")
             return jsonify({'error': str(e)}), 500
-    
+
+    @app.route('/api/iocs')
+    def api_iocs():
+        """API para obtener IOCs (Indicators of Compromise)"""
+        try:
+            # Obtener parámetros de filtro
+            ioc_type = request.args.get('type', '')
+            confidence = request.args.get('confidence', '')
+            country = request.args.get('country', '')
+            limit = int(request.args.get('limit', 100))
+            
+            # Obtener IOCs desde el storage
+            iocs = storage.get_recent_iocs(limit=limit)
+            
+            # Aplicar filtros
+            if ioc_type:
+                iocs = [ioc for ioc in iocs if ioc.get('type') == ioc_type]
+            
+            if confidence:
+                min_confidence = int(confidence)
+                iocs = [ioc for ioc in iocs if ioc.get('confidence', 0) >= min_confidence]
+            
+            if country:
+                iocs = [ioc for ioc in iocs if ioc.get('country', '').lower() == country.lower()]
+            
+            # Formatear respuesta
+            formatted_iocs = []
+            for ioc in iocs:
+                formatted_ioc = {
+                    'id': ioc.get('_id', str(ioc.get('id', ''))),
+                    'value': ioc.get('value', ''),
+                    'type': ioc.get('type', ''),
+                    'confidence': ioc.get('confidence', 0),
+                    'first_seen': ioc.get('first_seen', ''),
+                    'last_seen': ioc.get('last_seen', ''),
+                    'source': ioc.get('source', ''),
+                    'tags': ioc.get('tags', []),
+                    'threat_type': ioc.get('threat_type', ''),
+                    'malware_family': ioc.get('malware_family', ''),
+                    'country': ioc.get('country', ''),
+                }
+                formatted_iocs.append(formatted_ioc)
+            
+            return jsonify(formatted_iocs)
+            
+        except Exception as e:
+            logger.error(f"Error en API IOCs: {e}")
+            return jsonify({'error': str(e)}), 500
+
     @app.route('/api/stats')
     def api_stats():
         """API para estadísticas del sistema"""
