@@ -1,0 +1,165 @@
+/workspace/app.py:6194: SyntaxWarning: invalid escape sequence '\.'
+  const ipPattern = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+============================================================
+AEGIS THREAT INTELLIGENCE LATAM - SISTEMA REAL
+   Desarrollado por: Elisa Elias
+   AEGIS Security Consulting
+   Version: 3.0.0 - PRODUCCIÓN
+============================================================
+2025-07-22 04:58:34,629 - __main__ - INFO - Iniciando AEGIS Threat Intelligence System...
+2025-07-22 04:58:39,638 - __main__ - WARNING - MongoDB no disponible: localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms), Timeout: 5.0s, Topology Description: <TopologyDescription id: 687f1a7ab3dc2883dd47a4bd, topology_type: Unknown, servers: [<ServerDescription ('localhost', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>]>. Usando almacenamiento en memoria.
+2025-07-22 04:58:39,639 - __main__ - INFO - Sistema profesional de Threat Intelligence inicializado
+2025-07-22 04:58:39,639 - __main__ - INFO - 📊 Estado actual: 0 campañas, 0 IOCs
+2025-07-22 04:58:39,639 - __main__ - INFO - No hay datos disponibles, generando datos de ejemplo...
+/workspace/app.py:3038: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  'first_seen': datetime.utcnow() - timedelta(days=7),
+/workspace/app.py:3039: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  'last_seen': datetime.utcnow() - timedelta(hours=2),
+/workspace/app.py:3045: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  'first_seen': datetime.utcnow() - timedelta(days=5),
+/workspace/app.py:3046: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  'last_seen': datetime.utcnow() - timedelta(hours=1),
+/workspace/app.py:3057: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  'first_seen': datetime.utcnow() - timedelta(days=3),
+/workspace/app.py:3058: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  'last_seen': datetime.utcnow() - timedelta(minutes=30),
+/workspace/app.py:3075: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  'first_seen': datetime.utcnow() - timedelta(days=2),
+/workspace/app.py:3076: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  'last_seen': datetime.utcnow() - timedelta(minutes=15),
+/workspace/app.py:3082: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  'first_seen': datetime.utcnow() - timedelta(days=2),
+/workspace/app.py:3083: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  'last_seen': datetime.utcnow() - timedelta(minutes=15),
+2025-07-22 04:58:39,639 - __main__ - ERROR - Error verificando/generando datos de ejemplo: Campaign.__init__() missing 2 required positional arguments: 'threat_actor' and 'ttps'
+2025-07-22 04:58:39,639 - __main__ - ERROR - No se pudieron generar datos de ejemplo
+2025-07-22 04:58:44,649 - __main__ - WARNING - MongoDB no disponible: localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms), Timeout: 5.0s, Topology Description: <TopologyDescription id: 687f1a7fb3dc2883dd47a4be, topology_type: Unknown, servers: [<ServerDescription ('localhost', 27017) server_type: Unknown, rtt: None, error=AutoReconnect('localhost:27017: [Errno 111] Connection refused (configured timeouts: socketTimeoutMS: 20000.0ms, connectTimeoutMS: 20000.0ms)')>]>. Usando almacenamiento en memoria.
+2025-07-22 04:58:44,650 - __main__ - INFO - Sistema profesional de Threat Intelligence inicializado
+
+Conectando a fuentes de Threat Intelligence:
+   FUENTES PROFESIONALES:
+   - VirusTotal API (URLs/archivos maliciosos)
+   - IBM X-Force Exchange API (Inteligencia corporativa)
+   - OTX AlienVault API (Indicadores colaborativos)
+   - Hybrid Analysis API (Análisis de malware)
+   - MalwareBazaar API (Muestras de malware)
+   - NVD API (Vulnerabilidades CVE)
+   FUENTES COMPLEMENTARIAS:
+   - OpenPhish (URLs de phishing)
+   - PhishTank (URLs verificadas)
+   - URLhaus (URLs de malware)
+   - ThreatFox (IOCs verificados)
+   - IP Blocklists (IPs maliciosas)
+
+Estado de configuración de APIs:
+   - VirusTotal: ✗ MODO DEMO
+   - IBM X-Force: ✗ MODO DEMO
+   - OTX AlienVault: ✗ MODO DEMO
+   - Hybrid Analysis: ✗ MODO DEMO
+   - NVD: ✗ MODO DEMO
+
+   NOTA: Sistema funcionando en modo DEMO con datos realistas
+   Para datos reales, configura las API keys en variables de entorno:
+   - VIRUSTOTAL_API_KEY
+   - IBM_XFORCE_API_KEY + IBM_XFORCE_PASSWORD
+   - OTX_API_KEY
+   - HYBRID_ANALYSIS_API_KEY
+   - NVD_API_KEY (opcional)
+2025-07-22 04:58:44,650 - __main__ - INFO - === INICIANDO RECOLECCIÓN PROFESIONAL DE THREAT INTELLIGENCE ===
+2025-07-22 04:58:44,650 - __main__ - INFO - === INICIANDO RECOLECCIÓN PROFESIONAL DE THREAT INTELLIGENCE ===
+2025-07-22 04:58:44,650 - __main__ - INFO - Recolectando desde VirusTotal...
+2025-07-22 04:58:44,650 - __main__ - INFO - VirusTotal API key no configurada - generando datos demo
+/workspace/app.py:1700: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  first_seen=datetime.utcnow() - timedelta(hours=random.randint(1, 48)),
+/workspace/app.py:1701: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  last_seen=datetime.utcnow(),
+2025-07-22 04:58:44,650 - __main__ - INFO - VirusTotal: 4 IOCs recolectados
+2025-07-22 04:58:46,650 - __main__ - INFO - Recolectando desde IBM X-Force...
+2025-07-22 04:58:46,650 - __main__ - INFO - IBM X-Force API credentials no configuradas - generando datos demo
+/workspace/app.py:1814: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  first_seen=datetime.utcnow() - timedelta(hours=random.randint(6, 120)),
+/workspace/app.py:1815: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  last_seen=datetime.utcnow(),
+2025-07-22 04:58:46,650 - __main__ - INFO - IBM X-Force: 5 IOCs recolectados
+2025-07-22 04:58:48,650 - __main__ - INFO - Recolectando desde OTX AlienVault...
+2025-07-22 04:58:48,651 - __main__ - INFO - OTX API key no configurada - generando datos demo
+/workspace/app.py:1952: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  first_seen=datetime.utcnow() - timedelta(hours=random.randint(1, 72)),
+/workspace/app.py:1953: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  last_seen=datetime.utcnow(),
+2025-07-22 04:58:48,651 - __main__ - INFO - OTX AlienVault: 5 IOCs recolectados
+2025-07-22 04:58:50,651 - __main__ - INFO - Recolectando desde Hybrid Analysis...
+2025-07-22 04:58:50,651 - __main__ - INFO - Hybrid Analysis API key no configurada - saltando
+2025-07-22 04:58:50,651 - __main__ - INFO - Hybrid Analysis: 0 IOCs recolectados
+2025-07-22 04:58:52,651 - __main__ - INFO - Recolectando desde MalwareBazaar...
+2025-07-22 04:58:52,651 - __main__ - INFO - Consultando MalwareBazaar para IOCs...
+/workspace/app.py:2102: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  first_seen=datetime.utcnow() - timedelta(hours=random.randint(1, 48)),
+/workspace/app.py:2103: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  last_seen=datetime.utcnow(),
+2025-07-22 04:58:53,095 - __main__ - INFO - MalwareBazaar: 5 IOCs recolectados
+2025-07-22 04:58:55,095 - __main__ - INFO - Recolectando desde NVD...
+2025-07-22 04:58:55,095 - __main__ - INFO - Consultando NVD para CVEs de los últimos 7 días...
+/workspace/app.py:1576: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  end_date = datetime.utcnow()
+2025-07-22 04:58:55,440 - __main__ - INFO - NVD: 15 CVEs recolectados
+2025-07-22 04:58:55,442 - __main__ - INFO - NVD: 1 IOCs recolectados
+2025-07-22 04:58:57,442 - __main__ - INFO - Correlacionando IOCs entre fuentes...
+2025-07-22 04:58:57,442 - __main__ - INFO - Recolectando desde fuentes de scraping tradicionales...
+2025-07-22 04:58:57,442 - __main__ - INFO - Scrapeando OpenPhish...
+2025-07-22 04:58:57,892 - __main__ - INFO - OpenPhish: 300 URLs encontradas
+/workspace/app.py:881: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  first_seen=datetime.utcnow(),
+/workspace/app.py:882: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  last_seen=datetime.utcnow(),
+2025-07-22 04:58:57,897 - __main__ - INFO - OpenPhish: 31 IOCs de LATAM recolectados
+2025-07-22 04:58:59,897 - __main__ - INFO - Scrapeando PhishTank...
+2025-07-22 04:59:00,045 - __main__ - WARNING - HTTP 404 para http://data.phishtank.com/data/online-valid.csv
+2025-07-22 04:59:00,102 - __main__ - WARNING - HTTP 404 para http://data.phishtank.com/data/online-valid.csv
+2025-07-22 04:59:00,157 - __main__ - WARNING - HTTP 404 para http://data.phishtank.com/data/online-valid.csv
+2025-07-22 04:59:00,157 - __main__ - ERROR - No se pudo obtener datos de PhishTank
+2025-07-22 04:59:02,157 - __main__ - INFO - Scrapeando URLhaus...
+2025-07-22 04:59:02,198 - __main__ - WARNING - Error en request a https://urlhaus.feodotracker.abuse.ch/downloads/csv_recent/: HTTPSConnectionPool(host='urlhaus.feodotracker.abuse.ch', port=443): Max retries exceeded with url: /downloads/csv_recent/ (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x7efd56caa990>: Failed to resolve 'urlhaus.feodotracker.abuse.ch' ([Errno -2] Name or service not known)"))
+2025-07-22 04:59:03,222 - __main__ - WARNING - Error en request a https://urlhaus.feodotracker.abuse.ch/downloads/csv_recent/: HTTPSConnectionPool(host='urlhaus.feodotracker.abuse.ch', port=443): Max retries exceeded with url: /downloads/csv_recent/ (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x7efd56caa0d0>: Failed to resolve 'urlhaus.feodotracker.abuse.ch' ([Errno -2] Name or service not known)"))
+2025-07-22 04:59:05,226 - __main__ - WARNING - Error en request a https://urlhaus.feodotracker.abuse.ch/downloads/csv_recent/: HTTPSConnectionPool(host='urlhaus.feodotracker.abuse.ch', port=443): Max retries exceeded with url: /downloads/csv_recent/ (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x7efd56c9ed50>: Failed to resolve 'urlhaus.feodotracker.abuse.ch' ([Errno -2] Name or service not known)"))
+2025-07-22 04:59:05,226 - __main__ - ERROR - No se pudo obtener datos de URLhaus
+2025-07-22 04:59:07,226 - __main__ - INFO - Creando campañas basadas en IOCs profesionales...
+/workspace/app.py:1367: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  campaign_id = hashlib.md5(f"{campaign_name}_{datetime.utcnow().date()}_{source}".encode()).hexdigest()
+2025-07-22 04:59:07,227 - __main__ - INFO - === RECOLECCIÓN PROFESIONAL COMPLETADA ===
+2025-07-22 04:59:07,227 - __main__ - INFO - IOCs totales: 51
+2025-07-22 04:59:07,227 - __main__ - INFO - Campañas creadas: 12
+2025-07-22 04:59:07,227 - __main__ - INFO - Campaña almacenada: Campaña Phishing - Virustotal (2 IOCs)
+2025-07-22 04:59:07,227 - __main__ - INFO - Campaña almacenada: Campaña C2 - Virustotal (1 IOCs)
+2025-07-22 04:59:07,227 - __main__ - INFO - Campaña almacenada: Campaña Malware - Virustotal (1 IOCs)
+2025-07-22 04:59:07,227 - __main__ - INFO - Campaña almacenada: Campaña Phishing - Ibm (3 IOCs)
+2025-07-22 04:59:07,227 - __main__ - INFO - Campaña almacenada: Campaña C2 - Ibm (1 IOCs)
+2025-07-22 04:59:07,228 - __main__ - INFO - Campaña almacenada: Campaña Malware - Ibm (1 IOCs)
+2025-07-22 04:59:07,228 - __main__ - INFO - Campaña almacenada: Campaña Phishing - Otx (3 IOCs)
+2025-07-22 04:59:07,228 - __main__ - INFO - Campaña almacenada: Campaña C2 - Otx (1 IOCs)
+2025-07-22 04:59:07,228 - __main__ - INFO - Campaña almacenada: Campaña Malware - Otx (1 IOCs)
+2025-07-22 04:59:07,228 - __main__ - INFO - Campaña almacenada: Campaña Javali - Malware (5 IOCs)
+2025-07-22 04:59:07,228 - __main__ - INFO - Campaña almacenada: Campaña Vulnerability - Nvd (1 IOCs)
+2025-07-22 04:59:07,229 - __main__ - INFO - Campaña almacenada: Campaña Phishing - Openphish (31 IOCs)
+
+Sistema inicializado correctamente:
+   Campañas detectadas: 12
+   IOCs recolectados: 51
+   Países afectados: 7
+   Alertas críticas: 2
+   Familias de malware: javali, mekotio, casbaneiro, grandoreiro, amavaldo
+
+Dashboard disponible en: http://localhost:5000
+   Sistema de monitoreo en tiempo real activado
+   Fuentes actualizándose automáticamente
+2025-07-22 04:59:07,229 - __main__ - INFO - Iniciando servidor web del sistema AEGIS...
+ * Serving Flask app 'app'
+ * Debug mode: off
+2025-07-22 04:59:07,230 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.30.0.2:5000
+2025-07-22 04:59:07,230 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-07-22 04:59:17,655 - werkzeug - INFO - 127.0.0.1 - - [22/Jul/2025 04:59:17] "GET /api/stats HTTP/1.1" 200 -
+2025-07-22 04:59:24,055 - werkzeug - INFO - 127.0.0.1 - - [22/Jul/2025 04:59:24] "GET / HTTP/1.1" 200 -
+2025-07-22 04:59:30,194 - werkzeug - INFO - 127.0.0.1 - - [22/Jul/2025 04:59:30] "HEAD / HTTP/1.1" 200 -

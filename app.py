@@ -42,6 +42,11 @@ from pymongo.errors import DuplicateKeyError
 from bs4 import BeautifulSoup
 import feedparser
 
+# Variables globales para almacenamiento en memoria compartido
+memory_campaigns_global = []
+memory_iocs_global = []
+memory_alerts_global = []
+
 # =====================================================
 # CONFIGURACIÓN DE APIs PROFESIONALES
 # =====================================================
@@ -1372,7 +1377,7 @@ class ProfessionalThreatIntelligence:
             ttps=self._identify_ttps(threat_types, malware_families),
             iocs=iocs,
             severity=severity,
-            source=f"real_{source}",
+            source=source,
             malware_families=malware_families,
             target_sectors=self._identify_target_sectors(iocs)
         )
@@ -2478,8 +2483,11 @@ class AegisStorage:
             campaign_dict['iocs'] = iocs_list
             
             if self.use_memory:
-                if not any(c['id'] == campaign.id for c in self.memory_campaigns):
-                    self.memory_campaigns.append(campaign_dict)
+                global memory_campaigns_global, memory_iocs_global
+                if not any(c['id'] == campaign.id for c in memory_campaigns_global):
+                    memory_campaigns_global.append(campaign_dict)
+                    self.memory_campaigns.append(campaign_dict)  # Also add to local for compatibility
+                    logger.debug(f"Campaña almacenada en memoria: {campaign.name} (total: {len(memory_campaigns_global)})")
                     
                     for ioc in campaign.iocs:
                         ioc_dict = asdict(ioc)
@@ -2487,9 +2495,11 @@ class AegisStorage:
                         ioc_dict['last_seen'] = ioc.last_seen.isoformat()
                         ioc_dict['campaign_id'] = campaign.id
                         
-                        if not any(i['value'] == ioc.value for i in self.memory_iocs):
-                            self.memory_iocs.append(ioc_dict)
+                        if not any(i['value'] == ioc.value for i in memory_iocs_global):
+                            memory_iocs_global.append(ioc_dict)
+                            self.memory_iocs.append(ioc_dict)  # Also add to local for compatibility
                 else:
+                    logger.debug(f"Campaña duplicada no almacenada: {campaign.id}")
                     return False
             else:
                 self.campaigns_collection.insert_one(campaign_dict)
@@ -2724,7 +2734,9 @@ class AegisStorage:
         """Busca campañas con filtros avanzados"""
         try:
             if self.use_memory:
-                campaigns = self.memory_campaigns.copy()
+                global memory_campaigns_global
+                logger.debug(f"Buscando campañas en memoria. Total disponibles: {len(memory_campaigns_global)}")
+                campaigns = memory_campaigns_global.copy()
                 
                 if query:
                     campaigns = [c for c in campaigns if 
@@ -2740,6 +2752,7 @@ class AegisStorage:
                         campaigns = [c for c in campaigns if filters['country'] in c['countries_affected']]
                 
                 campaigns.sort(key=lambda x: x['last_seen'], reverse=True)
+                logger.debug(f"Campañas después de filtros: {len(campaigns)}")
                 return campaigns[:100]
             
             else:
@@ -2774,9 +2787,10 @@ class AegisStorage:
         """Obtiene estadísticas detalladas del sistema"""
         try:
             if self.use_memory:
+                global memory_campaigns_global, memory_iocs_global
                 stats = {
-                    'total_campaigns': len(self.memory_campaigns),
-                    'total_iocs': len(self.memory_iocs),
+                    'total_campaigns': len(memory_campaigns_global),
+                    'total_iocs': len(memory_iocs_global),
                     'campaigns_by_severity': {},
                     'campaigns_by_source': {},
                     'iocs_by_type': {},
@@ -2784,22 +2798,22 @@ class AegisStorage:
                     'malware_families': {}
                 }
                 
-                for campaign in self.memory_campaigns:
+                for campaign in memory_campaigns_global:
                     severity = campaign['severity']
                     stats['campaigns_by_severity'][severity] = stats['campaigns_by_severity'].get(severity, 0) + 1
                 
-                for campaign in self.memory_campaigns:
+                for campaign in memory_campaigns_global:
                     source = campaign['source']
                     stats['campaigns_by_source'][source] = stats['campaigns_by_source'].get(source, 0) + 1
                 
-                for ioc in self.memory_iocs:
+                for ioc in memory_iocs_global:
                     ioc_type = ioc['type']
                     stats['iocs_by_type'][ioc_type] = stats['iocs_by_type'].get(ioc_type, 0) + 1
                     
                     country = ioc.get('country', 'unknown')
                     stats['iocs_by_country'][country] = stats['iocs_by_country'].get(country, 0) + 1
                 
-                for campaign in self.memory_campaigns:
+                for campaign in memory_campaigns_global:
                     for family in campaign.get('malware_families', []):
                         stats['malware_families'][family] = stats['malware_families'].get(family, 0) + 1
                 
@@ -2868,7 +2882,8 @@ class AegisStorage:
             output = StringIO()
             
             if self.use_memory:
-                campaigns = self.memory_campaigns
+                global memory_campaigns_global
+                campaigns = memory_campaigns_global
                 if campaign_ids:
                     campaigns = [c for c in campaigns if c['id'] in campaign_ids]
             else:
@@ -4035,6 +4050,189 @@ def create_app():
             </div>
 
             <div id="virustotal" class="section">
+
+                <h2 style="margin-bottom: 2rem; color: #00ff7f;">
+                    <i class="fas fa-shield-alt"></i> VirusTotal - Análisis de Amenazas
+                </h2>
+                
+                <div class="dashboard-grid" style="margin-bottom: 2rem;">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>IOCs Detectados por VirusTotal</h3>
+                        </div>
+                        <div class="card-content">
+                            <p style="color: #a0aec0; margin-bottom: 1rem;">
+                                Dominios, IPs y hashes maliciosos detectados por VirusTotal dirigidos a LATAM
+                            </p>
+                            <button class="action-btn" onclick="loadSourceData('virustotal')" id="updateVirusTotalBtn">
+                                <i class="fas fa-sync"></i>
+                                Actualizar desde VirusTotal
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Búsqueda Manual</h3>
+                        </div>
+                        <div class="card-content">
+                            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                                <input type="text" id="vtSearchInput" class="filter-input" placeholder="Ingresa hash, dominio o IP...">
+                                <button class="action-btn" onclick="searchVirusTotal()">
+                                    <i class="fas fa-search"></i>
+                                    Buscar en VirusTotal
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="virustotalTable">
+                    <div class="loading"></div> Cargando datos de VirusTotal...
+                </div>
+            </div>
+
+            <div id="malwarebazaar" class="section">
+                <h2 style="margin-bottom: 2rem; color: #00ff7f;">
+                    <i class="fas fa-virus"></i> MalwareBazaar - Muestras de Malware
+                </h2>
+                
+                <div class="dashboard-grid" style="margin-bottom: 2rem;">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Muestras Recientes LATAM</h3>
+                        </div>
+                        <div class="card-content">
+                            <p style="color: #a0aec0; margin-bottom: 1rem;">
+                                Muestras de malware dirigidas a países de LATAM desde MalwareBazaar
+                            </p>
+                            <button class="action-btn" onclick="loadSourceData('malwarebazaar')" id="updateMalwareBazaarBtn">
+                                <i class="fas fa-sync"></i>
+                                Actualizar Muestras
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Estadísticas</h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="stats-mini-grid">
+                                <div class="mini-stat">
+                                    <div class="mini-stat-value" id="mbTotalSamples">0</div>
+                                    <div class="mini-stat-label">Muestras Total</div>
+                                </div>
+                                <div class="mini-stat">
+                                    <div class="mini-stat-value" id="mbBankingTrojans">0</div>
+                                    <div class="mini-stat-label">Banking Trojans</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="malwarebazaarTable">
+                    <div class="loading"></div> Cargando muestras de MalwareBazaar...
+                </div>
+            </div>
+
+            <div id="otx" class="section">
+                <h2 style="margin-bottom: 2rem; color: #00ff7f;">
+                    <i class="fas fa-eye"></i> AlienVault OTX - Pulsos de Amenaza
+                </h2>
+                
+                <div class="dashboard-grid" style="margin-bottom: 2rem;">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Pulsos Recientes LATAM</h3>
+                        </div>
+                        <div class="card-content">
+                            <p style="color: #a0aec0; margin-bottom: 1rem;">
+                                Últimos pulsos de amenaza relacionados con LATAM desde la comunidad OTX
+                            </p>
+                            <button class="action-btn" onclick="loadSourceData('otx')" id="updateOTXBtn">
+                                <i class="fas fa-sync"></i>
+                                Actualizar Pulsos OTX
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Tipos de Indicadores</h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="stats-mini-grid">
+                                <div class="mini-stat">
+                                    <div class="mini-stat-value" id="otxDomains">0</div>
+                                    <div class="mini-stat-label">Dominios</div>
+                                </div>
+                                <div class="mini-stat">
+                                    <div class="mini-stat-value" id="otxIPs">0</div>
+                                    <div class="mini-stat-label">IPs</div>
+                                </div>
+                                <div class="mini-stat">
+                                    <div class="mini-stat-value" id="otxURLs">0</div>
+                                    <div class="mini-stat-label">URLs</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="otxTable">
+                    <div class="loading"></div> Cargando pulsos de OTX...
+                </div>
+            </div>
+
+            <div id="xforce" class="section">
+                <h2 style="margin-bottom: 2rem; color: #00ff7f;">
+                    <i class="fas fa-globe"></i> IBM X-Force Exchange - Inteligencia Corporativa
+                </h2>
+                
+                <div class="dashboard-grid" style="margin-bottom: 2rem;">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Amenazas LATAM - X-Force</h3>
+                        </div>
+                        <div class="card-content">
+                            <p style="color: #a0aec0; margin-bottom: 1rem;">
+                                Datos de inteligencia corporativa de IBM X-Force sobre amenazas en LATAM
+                            </p>
+                            <button class="action-btn" onclick="loadSourceData('xforce')" id="updateXForceBtn">
+                                <i class="fas fa-sync"></i>
+                                Actualizar X-Force
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Campañas Activas</h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="stats-mini-grid">
+                                <div class="mini-stat">
+                                    <div class="mini-stat-value" id="xfCampaigns">0</div>
+                                    <div class="mini-stat-label">Campañas</div>
+                                </div>
+                                <div class="mini-stat">
+                                    <div class="mini-stat-value" id="xfHighRisk">0</div>
+                                    <div class="mini-stat-label">Alto Riesgo</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="xforceTable">
+                    <div class="loading"></div> Cargando datos de X-Force...
+                </div>
+            </div>
+
+            <div id="cves" class="section">
+
                 <h2 style="margin-bottom: 2rem; color: #00ff7f;">
                     <i class="fas fa-shield-alt"></i> VirusTotal - Análisis de Amenazas
                 </h2>
@@ -4417,7 +4615,9 @@ def create_app():
         </main>
     </div>
 
-    <script>
+    <script type="text/javascript">
+        // Cache buster para forzar recarga de JavaScript
+        console.log('🚀 AEGIS Dashboard JavaScript cargado:', new Date().toISOString());
         const COLORS = {
             primary: '#00ff7f',
             critical: '#ff453a',
@@ -4471,13 +4671,37 @@ def create_app():
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🚀 Inicializando AEGIS Dashboard...');
             setupNavigation();
+            setupEventListeners(); // Configurar event listeners
             loadDashboardData();
             startAutoRefresh();
-            
+
+            // Forzar carga inicial de datos si no hay campañas
+            setTimeout(async () => {
+                try {
+                    const response = await fetch('/api/stats');
+                    const stats = await response.json();
+                    
+                    if (stats.total_campaigns === 0) {
+                        console.log('No hay campañas, ejecutando scraping inicial...');
+                        const scrapingResponse = await fetch('/api/scrape', { method: 'POST' });
+                        const scrapingResult = await scrapingResponse.json();
+                        console.log('Resultado del scraping inicial:', scrapingResult);
+                        
+                        // Recargar datos después del scraping
+                        setTimeout(() => {
+                            loadDashboardData();
+                        }, 2000);
+                    }
+                } catch (error) {
+                    console.log('Error verificando datos iniciales:', error);
+                }
+            }, 3000);
+
             // Agregar event listeners adicionales
             setupEventListeners();
             
             console.log('✅ Dashboard inicializado correctamente');
+
         });
 
         function setupNavigation() {
@@ -4491,12 +4715,12 @@ def create_app():
                 attempts++;
                 console.log(`🔍 Intento ${attempts}/${maxAttempts} de configurar navegación`);
                 
-                const navLinks = document.querySelectorAll('.nav-link');
+                const navigationLinks = document.querySelectorAll('.nav-link');
                 const sections = document.querySelectorAll('.section');
                 
-                console.log(`📊 Encontrados ${navLinks.length} nav-links y ${sections.length} secciones`);
+                console.log(`📊 Encontrados ${navigationLinks.length} nav-links y ${sections.length} secciones`);
                 
-                if (navLinks.length === 0) {
+                if (navigationLinks.length === 0) {
                     if (attempts < maxAttempts) {
                         console.log(`⏳ No se encontraron nav-links, reintentando en 500ms...`);
                         setTimeout(trySetupNavigation, 500);
@@ -4511,7 +4735,7 @@ def create_app():
                 // Configurar event listeners
                 let successfulListeners = 0;
                 
-                navLinks.forEach((link, index) => {
+                navigationLinks.forEach((link, index) => {
                     const sectionId = link.dataset.section;
                     console.log(`🔗 Configurando nav-link ${index + 1}: "${sectionId}"`);
                     
@@ -4556,26 +4780,25 @@ def create_app():
         
         // Función de test para verificar que la navegación funciona
         function testNavigation() {
-            const navLinks = document.querySelectorAll('.nav-link');
-            if (navLinks.length > 0) {
+            const testNavLinks = document.querySelectorAll('.nav-link');
+            const sections = document.querySelectorAll('.section');
+            
+            if (testNavLinks.length > 0) {
                 console.log(`🧪 Test: Simulando click en primera pestaña...`);
-                const firstLink = navLinks[0];
+                const firstLink = testNavLinks[0];
                 const sectionId = firstLink.dataset.section;
                 console.log(`🧪 Test: Navegando a "${sectionId}"`);
                 showSection(sectionId);
             }
-            // Verificar que los elementos existen
-            const navLinks = document.querySelectorAll('.nav-link');
-            const sections = document.querySelectorAll('.section');
             
-            console.log(`Encontrados ${navLinks.length} nav-links y ${sections.length} secciones`);
+            console.log(`Encontrados ${testNavLinks.length} nav-links y ${sections.length} secciones`);
             
-            if (navLinks.length === 0) {
+            if (testNavLinks.length === 0) {
                 console.error('❌ No se encontraron elementos .nav-link');
                 return;
             }
             
-            navLinks.forEach((link, index) => {
+            testNavLinks.forEach((link, index) => {
                 const sectionId = link.dataset.section;
                 console.log(`Configurando nav-link ${index + 1}: ${sectionId}`);
                 
@@ -4609,8 +4832,8 @@ def create_app():
                 targetSection.classList.add('active');
                 
                 // Actualizar navegación visual
-                const navLinks = document.querySelectorAll('.nav-link');
-                navLinks.forEach(link => {
+                const sectionNavLinks = document.querySelectorAll('.nav-link');
+                sectionNavLinks.forEach(link => {
                     link.classList.remove('active');
                 });
                 
@@ -4907,7 +5130,20 @@ def create_app():
         }
 
         async function loadDashboardAlerts() {
+            const container = document.getElementById('dashboardAlerts');
+            if (!container) {
+                console.error('Contenedor de alertas no encontrado');
+                return;
+            }
+
             try {
+
+                container.innerHTML = '<div class="loading"></div> Cargando alertas...';
+                
+                const response = await fetch('/api/alerts');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+
                 const container = document.getElementById('dashboardAlerts');
                 
                 if (!container) {
@@ -4929,12 +5165,57 @@ def create_app():
                     console.error('Las alertas no son un array:', alerts);
                     container.innerHTML = '<p style="color: #ff453a;">Error: Formato de datos incorrecto</p>';
                     return;
+
                 }
                 
-                if (alerts.length === 0) {
-                    container.innerHTML = '<p style="color: #a0aec0;">No hay alertas críticas actualmente</p>';
+                const alerts = await response.json();
+                console.log('Alertas recibidas:', alerts.length);
+                
+                if (!Array.isArray(alerts) || alerts.length === 0) {
+                    container.innerHTML = `
+                        <div style="padding: 1rem; text-align: center; color: #a0aec0;">
+                            <i class="fas fa-shield-alt" style="font-size: 2rem; margin-bottom: 0.5rem;"></i>
+                            <p>No hay alertas críticas actualmente</p>
+                            <p style="font-size: 0.8rem;">El sistema está monitoreando amenazas...</p>
+                        </div>
+                    `;
                     return;
                 }
+
+
+                container.innerHTML = alerts.slice(0, 5).map(alert => {
+                    try {
+                        return `
+                            <div class="alert-item">
+                                <div class="alert-header">
+                                    <span class="alert-title">${alert.title || 'Alerta'}</span>
+                                    <span class="alert-time">${alert.timestamp ? formatTimestamp(alert.timestamp) : 'Reciente'}</span>
+                                </div>
+                                <p style="margin: 0; color: #a0aec0; font-size: 0.9rem;">${alert.description || 'Sin descripción'}</p>
+                            </div>
+                        `;
+                    } catch (alertError) {
+                        console.error('Error procesando alerta individual:', alertError);
+                        return '';
+                    }
+                }).filter(html => html.length > 0).join('');
+                
+                if (container.innerHTML.trim() === '') {
+                    container.innerHTML = '<p style="color: #a0aec0;">Error procesando alertas</p>';
+                }
+                
+            } catch (error) {
+                console.error('Error cargando alertas:', error);
+                container.innerHTML = `
+                    <div style="padding: 1rem; text-align: center; color: #ff9500;">
+                        <i class="fas fa-exclamation-triangle" style="font-size: 2rem; margin-bottom: 0.5rem;"></i>
+                        <p>Error cargando alertas</p>
+                        <p style="font-size: 0.8rem;">Verificando conexión...</p>
+                        <button class="action-btn" onclick="loadDashboardAlerts()" style="margin-top: 0.5rem; font-size: 0.8rem;">
+                            <i class="fas fa-sync"></i> Reintentar
+                        </button>
+                    </div>
+                `;
 
                 container.innerHTML = alerts.slice(0, 5).map(alert => `
                     <div class="alert-item">
@@ -4952,6 +5233,7 @@ def create_app():
                 if (container) {
                     container.innerHTML = `<p style="color: #ff453a;">Error cargando alertas: ${error.message}</p>`;
                 }
+
             }
         }
 
@@ -5541,6 +5823,294 @@ def create_app():
             }
         }
 
+        function exportCVEs() {
+            const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+            // Por ahora usar el export general, se puede crear uno específico para CVEs
+            exportData('json');
+        }
+
+        // Funciones para las nuevas fuentes de threat intelligence
+        async function loadSourceData(source) {
+            try {
+                const container = document.getElementById(`${source}Table`);
+                if (!container) {
+                    console.error(`Contenedor ${source}Table no encontrado`);
+                    return;
+                }
+                
+                container.innerHTML = '<div class="loading"></div> Cargando datos...';
+                
+                const response = await fetch('/api/campaigns');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const campaigns = await response.json();
+                console.log(`Campañas obtenidas: ${campaigns.length}`);
+                
+                // Mejorar filtrado de campañas por fuente
+                const sourceCampaigns = campaigns.filter(campaign => {
+                    const campaignSource = campaign.source ? campaign.source.toLowerCase() : '';
+                    const targetSource = source.toLowerCase();
+                    
+                    // Mapeo de nombres de fuentes
+                    const sourceMapping = {
+                        'virustotal': ['virustotal', 'virus_total'],
+                        'malwarebazaar': ['malware_bazaar', 'malwarebazaar', 'bazaar'],
+                        'otx': ['otx_alienvault', 'otx', 'alienvault'],
+                        'xforce': ['ibm_xforce', 'xforce', 'x-force']
+                    };
+                    
+                    const validSources = sourceMapping[targetSource] || [targetSource];
+                    return validSources.some(validSource => campaignSource.includes(validSource));
+                });
+                
+                console.log(`Campañas filtradas para ${source}: ${sourceCampaigns.length}`);
+                
+                let allIOCs = [];
+                sourceCampaigns.forEach(campaign => {
+                    if (campaign.iocs && Array.isArray(campaign.iocs)) {
+                        campaign.iocs.forEach(ioc => {
+                            ioc.campaign_name = campaign.name;
+                            allIOCs.push(ioc);
+                        });
+                    }
+                });
+                
+                console.log(`IOCs para ${source}: ${allIOCs.length}`);
+                
+                // Actualizar estadísticas específicas por fuente
+                updateSourceStats(source, allIOCs, sourceCampaigns);
+                
+                if (allIOCs.length === 0) {
+                    container.innerHTML = `
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Datos de ${source.toUpperCase()}</h3>
+                            </div>
+                            <div class="card-content">
+                                <div style="padding: 2rem; text-align: center; color: #a0aec0;">
+                                    <i class="fas fa-info-circle" style="font-size: 3rem; margin-bottom: 1rem;"></i>
+                                    <p>No se encontraron datos de ${source} en este momento</p>
+                                    <p style="font-size: 0.9rem; margin-top: 1rem;">
+                                        Los datos se actualizan automáticamente cada 6 horas
+                                    </p>
+                                    <div style="margin-top: 1rem; display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                                        <button class="action-btn" onclick="loadSourceData('${source}')" style="font-size: 0.9rem;">
+                                            <i class="fas fa-sync"></i>
+                                            Recargar
+                                        </button>
+                                        <button class="action-btn" onclick="updateSpecificSource('${source}')" style="font-size: 0.9rem;">
+                                            <i class="fas fa-download"></i>
+                                            Actualizar ${source}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Mostrar tabla de IOCs
+                container.innerHTML = `
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>IOCs desde ${source.toUpperCase()} (${allIOCs.length} total)</h3>
+                        </div>
+                        <div class="card-content">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Valor del IOC</th>
+                                        <th>Tipo</th>
+                                        <th>Confianza</th>
+                                        <th>País</th>
+                                        <th>Tipo de Amenaza</th>
+                                        <th>Familia de Malware</th>
+                                        <th>Última Actividad</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${allIOCs.slice(0, 50).map(ioc => `
+                                        <tr>
+                                            <td>
+                                                <div class="ioc-value">${ioc.value}</div>
+                                            </td>
+                                            <td>
+                                                <span style="background: rgba(0, 255, 127, 0.2); color: #00ff7f; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">
+                                                    ${ioc.type.toUpperCase()}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span style="color: ${ioc.confidence >= 80 ? '#00ff7f' : ioc.confidence >= 60 ? '#ffcc02' : '#ff9500'}; font-weight: bold;">
+                                                    ${ioc.confidence}%
+                                                </span>
+                                            </td>
+                                            <td>
+                                                ${ioc.country ? `<span class="country-tag">${ioc.country}</span>` : '-'}
+                                            </td>
+                                            <td>
+                                                ${ioc.threat_type ? `<span style="background: rgba(255, 69, 58, 0.2); color: #ff453a; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">${ioc.threat_type}</span>` : '-'}
+                                            </td>
+                                            <td>
+                                                ${ioc.malware_family ? `<span style="background: rgba(255, 149, 0, 0.2); color: #ff9500; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">${ioc.malware_family}</span>` : '-'}
+                                            </td>
+                                            <td style="font-size: 0.9rem;">
+                                                ${formatTimestamp(ioc.last_seen)}
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+                
+            } catch (error) {
+                console.error(`Error cargando datos de ${source}:`, error);
+                document.getElementById(`${source}Table`).innerHTML = `<p style="color: #ff453a;">Error cargando datos de ${source}</p>`;
+            }
+        }
+
+        function updateSourceStats(source, iocs, campaigns) {
+            try {
+                console.log(`Actualizando estadísticas para ${source}:`, {iocs: iocs.length, campaigns: campaigns.length});
+                
+                switch(source) {
+                    case 'malwarebazaar':
+                        const mbTotalElement = document.getElementById('mbTotalSamples');
+                        const mbBankingElement = document.getElementById('mbBankingTrojans');
+                        
+                        if (mbTotalElement) mbTotalElement.textContent = iocs.length;
+                        
+                        if (mbBankingElement) {
+                            const bankingTrojans = iocs.filter(ioc => 
+                                (ioc.tags && ioc.tags.some(tag => tag.includes('banking'))) ||
+                                (ioc.malware_family && ['grandoreiro', 'mekotio', 'casbaneiro'].includes(ioc.malware_family.toLowerCase()))
+                            ).length;
+                            mbBankingElement.textContent = bankingTrojans;
+                        }
+                        break;
+                        
+                    case 'otx':
+                        const domainsElement = document.getElementById('otxDomains');
+                        const ipsElement = document.getElementById('otxIPs');
+                        const urlsElement = document.getElementById('otxURLs');
+                        
+                        if (domainsElement) {
+                            const domains = iocs.filter(ioc => ioc.type === 'domain').length;
+                            domainsElement.textContent = domains;
+                        }
+                        
+                        if (ipsElement) {
+                            const ips = iocs.filter(ioc => ioc.type === 'ip').length;
+                            ipsElement.textContent = ips;
+                        }
+                        
+                        if (urlsElement) {
+                            const urls = iocs.filter(ioc => ioc.type === 'url').length;
+                            urlsElement.textContent = urls;
+                        }
+                        break;
+                        
+                    case 'xforce':
+                        const campaignsElement = document.getElementById('xfCampaigns');
+                        const highRiskElement = document.getElementById('xfHighRisk');
+                        
+                        if (campaignsElement) campaignsElement.textContent = campaigns.length;
+                        
+                        if (highRiskElement) {
+                            const highRisk = campaigns.filter(c => 
+                                c.severity === 'critical' || c.severity === 'high'
+                            ).length;
+                            highRiskElement.textContent = highRisk;
+                        }
+                        break;
+                        
+                    default:
+                        console.log(`No hay estadísticas específicas para ${source}`);
+                }
+            } catch (error) {
+                console.error(`Error actualizando estadísticas de ${source}:`, error);
+            }
+        }
+
+        async function searchVirusTotal() {
+            try {
+                const searchTerm = document.getElementById('vtSearchInput').value.trim();
+                if (!searchTerm) {
+                    showNotification('Ingresa un hash, dominio o IP para buscar', 'error');
+                    return;
+                }
+                
+                const container = document.getElementById('virustotalTable');
+                container.innerHTML = '<div class="loading"></div> Buscando en VirusTotal...';
+                
+                // En un entorno real con API key, aquí se haría la consulta real
+                // Por ahora, simular búsqueda
+                setTimeout(() => {
+                    container.innerHTML = `
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>Resultado de búsqueda: ${searchTerm}</h3>
+                            </div>
+                            <div class="card-content">
+                                <div style="padding: 2rem; text-align: center; color: #a0aec0;">
+                                    <i class="fas fa-info-circle" style="font-size: 3rem; margin-bottom: 1rem;"></i>
+                                    <p>Función de búsqueda manual disponible con API key de VirusTotal</p>
+                                    <p style="font-size: 0.9rem; margin-top: 1rem;">
+                                        Para usar esta función, configura tu API key de VirusTotal en las variables de entorno
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }, 1500);
+                
+            } catch (error) {
+                console.error('Error en búsqueda VirusTotal:', error);
+                showNotification('Error en la búsqueda', 'error');
+            }
+        }
+
+        async function updateSpecificSource(source) {
+            try {
+                const container = document.getElementById(`${source}Table`);
+                if (container) {
+                    container.innerHTML = '<div class="loading"></div> Actualizando datos...';
+                }
+                
+                showNotification(`Actualizando datos de ${source}...`, 'info');
+                
+                const response = await fetch(`/api/update/source/${source}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification(`${source} actualizado: ${result.iocs_collected} IOCs recolectados`, 'success');
+                    
+                    // Recargar datos del dashboard y de la fuente específica
+                    setTimeout(() => {
+                        loadDashboardData();
+                        loadSourceData(source);
+                    }, 1000);
+                } else {
+                    showNotification(`Error actualizando ${source}: ${result.error}`, 'error');
+                    loadSourceData(source); // Recargar para mostrar mensaje apropiado
+                }
+                
+            } catch (error) {
+                console.error(`Error actualizando ${source}:`, error);
+                showNotification(`Error de conexión al actualizar ${source}`, 'error');
+                loadSourceData(source); // Recargar para mostrar mensaje apropiado
+            }
+        }
+
+
         function getCVSSClass(score) {
             if (score >= 9.0) return 'cvss-critical';
             if (score >= 7.0) return 'cvss-high';
@@ -5883,14 +6453,25 @@ def create_app():
         }
 
         function formatTimestamp(timestamp) {
-            const date = new Date(timestamp);
-            return date.toLocaleString('es-ES', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
+            try {
+                if (!timestamp) return 'Sin fecha';
+                
+                const date = new Date(timestamp);
+                if (isNaN(date.getTime())) {
+                    return 'Fecha inválida';
+                }
+                
+                return date.toLocaleString('es-ES', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            } catch (error) {
+                console.error('Error formateando timestamp:', error);
+                return 'Error en fecha';
+            }
         }
 
         // Los event listeners ahora están configurados en setupEventListeners()
