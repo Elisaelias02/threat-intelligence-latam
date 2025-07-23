@@ -502,70 +502,537 @@ class ProfessionalThreatIntelligence:
         
         return campaign
     
-    def _generate_demo_data(self) -> List[Campaign]:
-        """Genera datos de demostración realistas"""
+    def _fetch_virustotal_data(self) -> List[Campaign]:
+        """Obtiene datos REALES de VirusTotal API v3"""
         campaigns = []
         
-        # Simular datos de diferentes fuentes
-        demo_sources = ['virustotal', 'malware_bazaar', 'otx_alienvault', 'ibm_xforce']
-        
-        for i, source in enumerate(demo_sources):
-            demo_iocs = []
+        try:
+            self.api_config._respect_rate_limit('virustotal')
+            headers = self.api_config.get_virustotal_headers()
             
-            # Generar IOCs de ejemplo específicos para cada fuente
-            for j in range(random.randint(3, 8)):
-                ioc_types = ['url', 'domain', 'ip', 'hash_sha256']
-                ioc_type = random.choice(ioc_types)
-                
-                if ioc_type == 'url':
-                    value = f"http://malicious-{source}-{i}-{j}.com/login"
-                elif ioc_type == 'domain':
-                    value = f"fake-bank-{source}-{i}-{j}.tk"
-                elif ioc_type == 'ip':
-                    value = f"201.{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}"
-                else:  # hash
-                    value = hashlib.sha256(f"{source}-{i}-{j}-sample".encode()).hexdigest()
-                
-                ioc = IOC(
-                    value=value,
-                    type=ioc_type,
-                    confidence=random.randint(70, 95),
-                    first_seen=datetime.utcnow() - timedelta(hours=random.randint(1, 72)),
-                    last_seen=datetime.utcnow() - timedelta(minutes=random.randint(5, 120)),
-                    source=source,
-                    tags=['demo', 'latam', random.choice(['phishing', 'malware', 'c2'])],
-                    threat_type=random.choice(['phishing', 'malware', 'c2']),
-                    malware_family=random.choice(['mekotio', 'grandoreiro', None, None]),
-                    country=random.choice(['brazil', 'mexico', 'argentina', 'colombia', 'chile'])
-                )
-                demo_iocs.append(ioc)
+            # Buscar comentarios recientes con keywords de LATAM
+            latam_keywords = ['brasil', 'brazil', 'mexico', 'argentina', 'chile', 'colombia', 'banking']
             
-            campaign = self.create_campaign_from_iocs(demo_iocs, source)
-            if campaign:
-                campaigns.append(campaign)
+            for keyword in latam_keywords[:3]:  # Limitar para no exceder rate limit
+                try:
+                    # Buscar en comentarios de VirusTotal
+                    url = f"{self.api_config.VIRUSTOTAL_BASE_URL_V3}/comments"
+                    params = {
+                        'limit': 20,
+                        'filter': f'tag:{keyword}'
+                    }
+                    
+                    response = requests.get(url, headers=headers, params=params, timeout=30)
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        
+                        iocs = []
+                        for comment in data.get('data', [])[:10]:  # Limitar cantidad
+                            # Extraer IOCs de los comentarios
+                            comment_text = comment.get('attributes', {}).get('text', '')
+                            extracted_iocs = self._extract_iocs_from_text(comment_text)
+                            
+                            for ioc in extracted_iocs:
+                                ioc.source = 'virustotal'
+                                ioc.tags = [keyword, 'virustotal']
+                                ioc.country = self._extract_country_from_content(comment_text)
+                                iocs.append(ioc)
+                        
+                        if iocs:
+                            campaign_id = f"vt-{keyword}-{int(time.time())}"
+                            campaign = Campaign(
+                                id=campaign_id,
+                                name=f"VirusTotal - Amenazas {keyword.title()}",
+                                description=f"IOCs detectados en comentarios de VirusTotal relacionados con {keyword}",
+                                countries_affected=[self._extract_country_from_content(keyword)],
+                                threat_actor=None,
+                                first_seen=datetime.utcnow() - timedelta(hours=24),
+                                last_seen=datetime.utcnow(),
+                                ttps=[],
+                                iocs=iocs[:20],  # Limitar cantidad
+                                severity='medium',
+                                source='virustotal',
+                                malware_families=[],
+                                target_sectors=[]
+                            )
+                            campaigns.append(campaign)
+                    
+                    time.sleep(2)  # Rate limiting adicional
+                    
+                except Exception as e:
+                    logger.warning(f"Error procesando keyword {keyword} en VirusTotal: {e}")
+                    continue
+                
+        except Exception as e:
+            logger.error(f"Error general en VirusTotal API: {e}")
         
         return campaigns
     
+    def _fetch_malwarebazaar_data(self) -> List[Campaign]:
+        """Obtiene datos REALES de MalwareBazaar API"""
+        campaigns = []
+        
+        try:
+            url = "https://mb-api.abuse.ch/api/v1/"
+            
+            # Obtener muestras recientes
+            payload = {
+                'query': 'get_recent',
+                'selector': '100'
+            }
+            
+            response = requests.post(url, data=payload, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                if data.get('query_status') == 'ok':
+                    # Filtrar por países LATAM o keywords relevantes
+                    latam_samples = []
+                    for sample in data.get('data', []):
+                        sample_info = str(sample).lower()
+                        
+                        # Verificar si es relevante para LATAM
+                        is_latam = any(keyword in sample_info for keyword in 
+                                     ['br', 'brasil', 'brazil', 'mx', 'mexico', 'ar', 'argentina', 
+                                      'cl', 'chile', 'co', 'colombia', 'banking', 'banco'])
+                        
+                        if is_latam:
+                            latam_samples.append(sample)
+                    
+                    # Crear campañas agrupadas por familia de malware
+                    malware_families = {}
+                    for sample in latam_samples[:30]:  # Limitar cantidad
+                        family = sample.get('signature', 'unknown')
+                        if family not in malware_families:
+                            malware_families[family] = []
+                        malware_families[family].append(sample)
+                    
+                    for family, samples in malware_families.items():
+                        iocs = []
+                        countries = set()
+                        
+                        for sample in samples:
+                            # Hash IOC
+                            if sample.get('sha256_hash'):
+                                ioc = IOC(
+                                    value=sample['sha256_hash'],
+                                    type='hash_sha256',
+                                    confidence=85,
+                                    first_seen=datetime.fromisoformat(sample.get('first_seen', datetime.utcnow().isoformat()).replace('Z', '+00:00')),
+                                    last_seen=datetime.utcnow(),
+                                    source='malware_bazaar',
+                                    tags=['malware', family],
+                                    threat_type='malware',
+                                    malware_family=family,
+                                    country=self._extract_country_from_content(str(sample))
+                                )
+                                iocs.append(ioc)
+                            
+                            # Determinar país afectado
+                            sample_str = str(sample).lower()
+                            if 'brazil' in sample_str or 'brasil' in sample_str or '.br' in sample_str:
+                                countries.add('brazil')
+                            elif 'mexico' in sample_str or '.mx' in sample_str:
+                                countries.add('mexico')
+                            elif 'argentina' in sample_str or '.ar' in sample_str:
+                                countries.add('argentina')
+                            elif 'chile' in sample_str or '.cl' in sample_str:
+                                countries.add('chile')
+                            elif 'colombia' in sample_str or '.co' in sample_str:
+                                countries.add('colombia')
+                            else:
+                                countries.add('latam')
+                        
+                        if iocs:
+                            campaign = Campaign(
+                                id=f"mb-{family}-{int(time.time())}",
+                                name=f"MalwareBazaar - {family.title()}",
+                                description=f"Muestras de malware {family} detectadas por MalwareBazaar relevantes para LATAM",
+                                countries_affected=list(countries) if countries else ['latam'],
+                                threat_actor=None,
+                                first_seen=datetime.utcnow() - timedelta(hours=12),
+                                last_seen=datetime.utcnow(),
+                                ttps=[],
+                                iocs=iocs[:15],  # Limitar cantidad
+                                severity='high' if family in ['mekotio', 'grandoreiro', 'casbaneiro'] else 'medium',
+                                source='malware_bazaar',
+                                malware_families=[family],
+                                target_sectors=['banking', 'financial'] if 'bank' in family.lower() else []
+                            )
+                            campaigns.append(campaign)
+                            
+        except Exception as e:
+            logger.error(f"Error en MalwareBazaar API: {e}")
+        
+        return campaigns
+    
+    def _fetch_otx_data(self) -> List[Campaign]:
+        """Obtiene datos REALES de OTX AlienVault API"""
+        campaigns = []
+        
+        try:
+            self.api_config._respect_rate_limit('otx')
+            headers = self.api_config.get_otx_headers()
+            
+            # Buscar pulsos relacionados con LATAM
+            url = f"{self.api_config.OTX_BASE_URL}/pulses/subscribed"
+            params = {
+                'limit': 50,
+                'modified_since': (datetime.utcnow() - timedelta(days=7)).isoformat()
+            }
+            
+            response = requests.get(url, headers=headers, params=params, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                for pulse in data.get('results', [])[:20]:  # Limitar cantidad
+                    try:
+                        # Filtrar pulsos relevantes para LATAM
+                        pulse_name = pulse.get('name', '').lower()
+                        pulse_desc = pulse.get('description', '').lower()
+                        pulse_tags = [tag.lower() for tag in pulse.get('tags', [])]
+                        
+                        is_latam = any(country in pulse_name or country in pulse_desc 
+                                     for country in self.config.LATAM_COUNTRIES)
+                        is_latam = is_latam or any(tag in pulse_tags for tag in ['latam', 'brazil', 'mexico', 'argentina', 'banking'])
+                        
+                        if is_latam:
+                            # Extraer IOCs del pulso
+                            iocs = []
+                            for indicator in pulse.get('indicators', [])[:15]:  # Limitar cantidad
+                                ioc_type = indicator.get('type')
+                                ioc_value = indicator.get('indicator')
+                                
+                                # Mapear tipos de OTX a nuestros tipos
+                                type_mapping = {
+                                    'IPv4': 'ip',
+                                    'domain': 'domain',
+                                    'hostname': 'domain',
+                                    'URL': 'url',
+                                    'FileHash-MD5': 'hash_md5',
+                                    'FileHash-SHA1': 'hash_sha1',
+                                    'FileHash-SHA256': 'hash_sha256'
+                                }
+                                
+                                mapped_type = type_mapping.get(ioc_type, 'unknown')
+                                
+                                if mapped_type != 'unknown':
+                                    ioc = IOC(
+                                        value=ioc_value,
+                                        type=mapped_type,
+                                        confidence=75,
+                                        first_seen=datetime.fromisoformat(pulse.get('created', datetime.utcnow().isoformat()).replace('Z', '+00:00')),
+                                        last_seen=datetime.utcnow(),
+                                        source='otx',
+                                        tags=pulse_tags[:5],  # Limitar tags
+                                        threat_type=pulse.get('malware_families', [None])[0] if pulse.get('malware_families') else None,
+                                        malware_family=pulse.get('malware_families', [None])[0] if pulse.get('malware_families') else None,
+                                        country=self._extract_country_from_content(pulse_name + ' ' + pulse_desc)
+                                    )
+                                    iocs.append(ioc)
+                            
+                            if iocs:
+                                campaign = Campaign(
+                                    id=f"otx-{pulse.get('id', int(time.time()))}",
+                                    name=f"OTX - {pulse.get('name', 'Amenaza LATAM')[:50]}...",  # Limitar longitud
+                                    description=pulse.get('description', '')[:200] + '...' if len(pulse.get('description', '')) > 200 else pulse.get('description', ''),
+                                    countries_affected=[self._extract_country_from_content(pulse_name + ' ' + pulse_desc)],
+                                    threat_actor=pulse.get('author_name'),
+                                    first_seen=datetime.fromisoformat(pulse.get('created', datetime.utcnow().isoformat()).replace('Z', '+00:00')),
+                                    last_seen=datetime.fromisoformat(pulse.get('modified', datetime.utcnow().isoformat()).replace('Z', '+00:00')),
+                                    ttps=[],
+                                    iocs=iocs,
+                                    severity='medium',
+                                    source='otx',
+                                    malware_families=pulse.get('malware_families', [])[:3],  # Limitar cantidad
+                                    target_sectors=[]
+                                )
+                                campaigns.append(campaign)
+                    
+                    except Exception as e:
+                        logger.warning(f"Error procesando pulso OTX: {e}")
+                        continue
+                        
+        except Exception as e:
+            logger.error(f"Error en OTX API: {e}")
+        
+        return campaigns
+    
+    def _fetch_xforce_data(self) -> List[Campaign]:
+        """Obtiene datos REALES de IBM X-Force Exchange API"""
+        campaigns = []
+        
+        try:
+            self.api_config._respect_rate_limit('ibm_xforce')
+            headers = self.api_config.get_ibm_xforce_headers()
+            
+            # Buscar amenazas recientes
+            url = f"{self.api_config.IBM_XFORCE_BASE_URL}/collections"
+            params = {
+                'limit': 20,
+                'bookmarked': 'false'
+            }
+            
+            response = requests.get(url, headers=headers, params=params, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                for collection in data.get('collections', [])[:10]:  # Limitar cantidad
+                    try:
+                        # Filtrar por relevancia LATAM
+                        title = collection.get('title', '').lower()
+                        description = collection.get('description', '').lower()
+                        
+                        is_latam = any(country in title or country in description 
+                                     for country in self.config.LATAM_COUNTRIES)
+                        is_latam = is_latam or any(keyword in title or keyword in description 
+                                                 for keyword in ['banking', 'financial', 'banco'])
+                        
+                        if is_latam:
+                            # Crear campaña básica (X-Force no siempre proporciona IOCs detallados en la API pública)
+                            campaign = Campaign(
+                                id=f"xforce-{collection.get('id', int(time.time()))}",
+                                name=f"IBM X-Force - {collection.get('title', 'Amenaza LATAM')[:50]}...",
+                                description=collection.get('description', '')[:200] + '...' if len(collection.get('description', '')) > 200 else collection.get('description', ''),
+                                countries_affected=[self._extract_country_from_content(title + ' ' + description)],
+                                threat_actor=None,
+                                first_seen=datetime.fromisoformat(collection.get('created', datetime.utcnow().isoformat()).replace('Z', '+00:00')),
+                                last_seen=datetime.utcnow(),
+                                ttps=[],
+                                iocs=[],  # X-Force API pública limitada para IOCs específicos
+                                severity='medium',
+                                source='ibm_xforce',
+                                malware_families=[],
+                                target_sectors=[]
+                            )
+                            campaigns.append(campaign)
+                        
+                        time.sleep(2)  # Rate limiting adicional
+                    
+                    except Exception as e:
+                        logger.warning(f"Error procesando colección X-Force: {e}")
+                        continue
+                        
+        except Exception as e:
+            logger.error(f"Error en IBM X-Force API: {e}")
+        
+        return campaigns
+    
+    def _fetch_public_sources(self) -> List[Campaign]:
+        """Obtiene datos REALES de fuentes públicas sin API key"""
+        campaigns = []
+        
+        try:
+            # URLhaus - abuse.ch (fuente pública confiable)
+            response = requests.get('https://urlhaus.feodotracker.abuse.ch/downloads/csv_recent/', timeout=30)
+            
+            if response.status_code == 200:
+                csv_data = response.text
+                lines = csv_data.strip().split('\n')
+                
+                # Saltar header si existe
+                if lines and lines[0].startswith('#'):
+                    lines = lines[1:]
+                
+                iocs = []
+                for line in lines[:100]:  # Limitar cantidad
+                    try:
+                        if line and not line.startswith('#'):
+                            parts = line.split(',')
+                            if len(parts) >= 8:
+                                url = parts[2].strip('"')
+                                url_status = parts[3].strip('"')
+                                
+                                # Solo URLs activas
+                                if url_status == 'online':
+                                    # Verificar si es relevante para LATAM
+                                    is_latam = any(keyword in url.lower() for keyword in 
+                                                 ['.br', '.mx', '.ar', '.cl', '.co', 'brasil', 'mexico', 'banco'])
+                                    
+                                    if is_latam:
+                                        ioc = IOC(
+                                            value=url,
+                                            type='url',
+                                            confidence=80,
+                                            first_seen=datetime.utcnow() - timedelta(hours=6),
+                                            last_seen=datetime.utcnow(),
+                                            source='urlhaus',
+                                            tags=['malware', 'url', 'latam'],
+                                            threat_type='malware',
+                                            malware_family=parts[5].strip('"') if len(parts) > 5 else 'unknown',
+                                            country=self._extract_country_from_content(url)
+                                        )
+                                        iocs.append(ioc)
+                    except Exception as e:
+                        continue  # Saltar líneas problemáticas
+                
+                if iocs:
+                    campaign = Campaign(
+                        id=f"urlhaus-{int(time.time())}",
+                        name="URLhaus - URLs Maliciosas LATAM",
+                        description=f"URLs maliciosas detectadas por URLhaus relevantes para LATAM ({len(iocs)} IOCs)",
+                        countries_affected=['latam'],
+                        threat_actor=None,
+                        first_seen=datetime.utcnow() - timedelta(hours=6),
+                        last_seen=datetime.utcnow(),
+                        ttps=[],
+                        iocs=iocs[:30],  # Limitar cantidad
+                        severity='medium',
+                        source='urlhaus',
+                        malware_families=list(set([ioc.malware_family for ioc in iocs if ioc.malware_family and ioc.malware_family != 'unknown']))[:5],
+                        target_sectors=[]
+                    )
+                    campaigns.append(campaign)
+                    
+        except Exception as e:
+            logger.error(f"Error obteniendo fuentes públicas: {e}")
+        
+        return campaigns
+    
+    def _extract_iocs_from_text(self, text: str) -> List[IOC]:
+        """Extrae IOCs de texto usando regex"""
+        iocs = []
+        
+        # Regex patterns para diferentes tipos de IOCs
+        patterns = {
+            'ip': r'\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b',
+            'domain': r'\b[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b',
+            'hash_md5': r'\b[a-fA-F0-9]{32}\b',
+            'hash_sha1': r'\b[a-fA-F0-9]{40}\b',
+            'hash_sha256': r'\b[a-fA-F0-9]{64}\b',
+            'url': r'https?://[^\s<>"{}|\\^`[\]]+',
+        }
+        
+        for ioc_type, pattern in patterns.items():
+            matches = re.findall(pattern, text)
+            
+            for match in matches[:5]:  # Limitar cantidad por tipo
+                # Filtrar falsos positivos comunes
+                if ioc_type == 'domain':
+                    if any(fp in match.lower() for fp in ['example.com', 'test.com', 'localhost']):
+                        continue
+                elif ioc_type == 'ip':
+                    if any(fp in match for fp in ['127.0.0.1', '0.0.0.0', '255.255.255.255']):
+                        continue
+                
+                ioc = IOC(
+                    value=match,
+                    type=ioc_type,
+                    confidence=65,
+                    first_seen=datetime.utcnow(),
+                    last_seen=datetime.utcnow(),
+                    source='text_extraction',
+                    tags=[],
+                    threat_type=None,
+                    malware_family=None,
+                    country=None
+                )
+                iocs.append(ioc)
+        
+        return iocs
+    
+    def _generate_minimal_demo_data(self) -> List[Campaign]:
+        """Genera datos mínimos de demostración cuando no hay APIs configuradas"""
+        logger.info("Generando datos mínimos de demostración - configura las API keys para datos reales")
+        
+        demo_iocs = [
+            IOC(
+                value="ejemplo-dominio-malicioso.tk",
+                type='domain',
+                confidence=75,
+                first_seen=datetime.utcnow() - timedelta(hours=24),
+                last_seen=datetime.utcnow(),
+                source='demo',
+                tags=['demo', 'phishing'],
+                threat_type='phishing',
+                malware_family=None,
+                country='latam'
+            )
+        ]
+        
+        demo_campaign = Campaign(
+            id=f"demo-{int(time.time())}",
+            name="Campaña de Demostración",
+            description="Configure las API keys (VIRUSTOTAL_API_KEY, OTX_API_KEY, etc.) para obtener datos reales de threat intelligence",
+            countries_affected=['latam'],
+            threat_actor=None,
+            first_seen=datetime.utcnow() - timedelta(hours=24),
+            last_seen=datetime.utcnow(),
+            ttps=[],
+            iocs=demo_iocs,
+            severity='low',
+            source='demo',
+            malware_families=[],
+            target_sectors=[]
+        )
+        
+        return [demo_campaign]
+    
     def scrape_all_sources(self) -> List[Campaign]:
-        """Ejecuta recolección de todas las fuentes disponibles"""
-        logger.info("=== INICIANDO RECOLECCIÓN DE THREAT INTELLIGENCE ===")
+        """Ejecuta recolección REAL de todas las fuentes de threat intelligence"""
+        logger.info("=== INICIANDO RECOLECCIÓN REAL DE THREAT INTELLIGENCE ===")
         
         campaigns = []
         
-        # Intentar recolección real si hay librerías disponibles
-        if WEB_SCRAPING_AVAILABLE:
+        # 1. VirusTotal IOCs
+        if self.api_config.VIRUSTOTAL_API_KEY:
             try:
-                # Aquí iría el scraping real con BeautifulSoup
-                logger.info("Web scraping libraries disponibles, usando datos demo por ahora")
-                campaigns = self._generate_demo_data()
+                vt_campaigns = self._fetch_virustotal_data()
+                campaigns.extend(vt_campaigns)
+                logger.info(f"VirusTotal: {len(vt_campaigns)} campañas obtenidas")
             except Exception as e:
-                logger.error(f"Error en scraping real: {e}")
-                campaigns = self._generate_demo_data()
+                logger.error(f"Error obteniendo datos de VirusTotal: {e}")
         else:
-            logger.info("Librerías de web scraping no disponibles, usando datos demo")
-            campaigns = self._generate_demo_data()
+            logger.warning("VirusTotal API key no configurada - saltando")
         
-        logger.info(f"=== RECOLECCIÓN COMPLETADA: {len(campaigns)} campañas ===")
+        # 2. MalwareBazaar (No requiere API key)
+        try:
+            mb_campaigns = self._fetch_malwarebazaar_data()
+            campaigns.extend(mb_campaigns)
+            logger.info(f"MalwareBazaar: {len(mb_campaigns)} campañas obtenidas")
+        except Exception as e:
+            logger.error(f"Error obteniendo datos de MalwareBazaar: {e}")
+        
+        # 3. OTX AlienVault
+        if self.api_config.OTX_API_KEY:
+            try:
+                otx_campaigns = self._fetch_otx_data()
+                campaigns.extend(otx_campaigns)
+                logger.info(f"OTX AlienVault: {len(otx_campaigns)} campañas obtenidas")
+            except Exception as e:
+                logger.error(f"Error obteniendo datos de OTX: {e}")
+        else:
+            logger.warning("OTX API key no configurada - saltando")
+        
+        # 4. IBM X-Force
+        if self.api_config.IBM_XFORCE_API_KEY:
+            try:
+                xforce_campaigns = self._fetch_xforce_data()
+                campaigns.extend(xforce_campaigns)
+                logger.info(f"IBM X-Force: {len(xforce_campaigns)} campañas obtenidas")
+            except Exception as e:
+                logger.error(f"Error obteniendo datos de IBM X-Force: {e}")
+        else:
+            logger.warning("IBM X-Force API key no configurada - saltando")
+        
+        # 5. Fuentes públicas (No requieren API key)
+        try:
+            public_campaigns = self._fetch_public_sources()
+            campaigns.extend(public_campaigns)
+            logger.info(f"Fuentes públicas: {len(public_campaigns)} campañas obtenidas")
+        except Exception as e:
+            logger.error(f"Error obteniendo datos de fuentes públicas: {e}")
+        
+        # Si no se obtuvo ningún dato real, generar datos mínimos para demo
+        if not campaigns:
+            logger.warning("No se obtuvieron datos reales, generando datos mínimos de demostración")
+            campaigns = self._generate_minimal_demo_data()
+        
+        logger.info(f"=== RECOLECCIÓN REAL COMPLETADA: {len(campaigns)} campañas ===")
         return campaigns
 
 # =====================================================
@@ -1101,6 +1568,255 @@ class AegisAlertSystem:
         return alerts[:10]
 
 # =====================================================
+# INTEGRACIÓN CON CVE / NVD
+# =====================================================
+
+class CVEIntegration:
+    """Integración con National Vulnerability Database (NVD)"""
+    
+    def __init__(self, api_key: Optional[str] = None):
+        self.api_key = api_key
+        self.base_url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+        self.headers = {
+            'User-Agent': 'AEGIS-ThreatIntel/3.0',
+            'Accept': 'application/json'
+        }
+        if self.api_key:
+            self.headers['apiKey'] = self.api_key
+    
+    def fetch_recent_cves(self, days_back: int = 7) -> List[CVE]:
+        """Obtiene CVEs recientes de NVD"""
+        cves = []
+        
+        try:
+            # Calcular fechas
+            end_date = datetime.utcnow()
+            start_date = end_date - timedelta(days=days_back)
+            
+            params = {
+                'pubStartDate': start_date.isoformat(),
+                'pubEndDate': end_date.isoformat(),
+                'resultsPerPage': 100
+            }
+            
+            response = requests.get(self.base_url, headers=self.headers, params=params, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                for vulnerability in data.get('vulnerabilities', []):
+                    cve_data = vulnerability.get('cve', {})
+                    
+                    # Extraer información básica
+                    cve_id = cve_data.get('id', '')
+                    descriptions = cve_data.get('descriptions', [])
+                    description = descriptions[0].get('value', '') if descriptions else ''
+                    
+                    # Fechas
+                    published = cve_data.get('published', datetime.utcnow().isoformat())
+                    modified = cve_data.get('lastModified', datetime.utcnow().isoformat())
+                    
+                    # CVSS Score
+                    metrics = cve_data.get('metrics', {})
+                    cvss_score = 0.0
+                    cvss_severity = 'unknown'
+                    vector_string = None
+                    
+                    # Buscar CVSS v3.1 primero, luego v3.0, luego v2.0
+                    for version in ['cvssMetricV31', 'cvssMetricV30', 'cvssMetricV2']:
+                        if version in metrics and metrics[version]:
+                            cvss_data = metrics[version][0].get('cvssData', {})
+                            cvss_score = cvss_data.get('baseScore', 0.0)
+                            cvss_severity = cvss_data.get('baseSeverity', 'unknown').lower()
+                            vector_string = cvss_data.get('vectorString')
+                            break
+                    
+                    # Referencias
+                    references = []
+                    for ref in cve_data.get('references', []):
+                        references.append(ref.get('url', ''))
+                    
+                    # CWE IDs
+                    cwe_ids = []
+                    for weakness in cve_data.get('weaknesses', []):
+                        for description in weakness.get('description', []):
+                            cwe_ids.append(description.get('value', ''))
+                    
+                    cve = CVE(
+                        id=cve_id,
+                        description=description,
+                        published_date=datetime.fromisoformat(published.replace('Z', '+00:00')),
+                        last_modified=datetime.fromisoformat(modified.replace('Z', '+00:00')),
+                        cvss_score=cvss_score,
+                        cvss_severity=cvss_severity,
+                        vector_string=vector_string,
+                        source='nvd',
+                        references=references,
+                        cwe_ids=cwe_ids,
+                        affected_products=[]
+                    )
+                    cves.append(cve)
+            else:
+                logger.warning(f"Error en NVD API: HTTP {response.status_code}")
+                    
+        except Exception as e:
+            logger.error(f"Error obteniendo CVEs de NVD: {e}")
+        
+        return cves
+
+# =====================================================
+# BÚSQUEDA MANUAL DE IOCs
+# =====================================================
+
+class IOCSearchEngine:
+    """Motor de búsqueda manual de IOCs"""
+    
+    def __init__(self, api_config: ThreatIntelAPIs):
+        self.api_config = api_config
+    
+    def search_ioc(self, ioc_value: str, ioc_type: str) -> Dict[str, Any]:
+        """Busca un IOC específico en múltiples fuentes"""
+        results = {
+            'ioc': ioc_value,
+            'type': ioc_type,
+            'sources': {},
+            'summary': {
+                'malicious': 0,
+                'total_engines': 0,
+                'confidence': 0
+            }
+        }
+        
+        # VirusTotal
+        if self.api_config.VIRUSTOTAL_API_KEY:
+            try:
+                vt_result = self._search_virustotal(ioc_value, ioc_type)
+                results['sources']['virustotal'] = vt_result
+                
+                if vt_result.get('malicious', 0) > 0:
+                    results['summary']['malicious'] += 1
+                results['summary']['total_engines'] += 1
+                    
+            except Exception as e:
+                logger.error(f"Error buscando en VirusTotal: {e}")
+                results['sources']['virustotal'] = {'error': str(e)}
+        
+        # IBM X-Force
+        if self.api_config.IBM_XFORCE_API_KEY:
+            try:
+                xf_result = self._search_xforce(ioc_value, ioc_type)
+                results['sources']['xforce'] = xf_result
+                
+                if xf_result.get('malicious', False):
+                    results['summary']['malicious'] += 1
+                results['summary']['total_engines'] += 1
+                    
+            except Exception as e:
+                logger.error(f"Error buscando en X-Force: {e}")
+                results['sources']['xforce'] = {'error': str(e)}
+        
+        # Calcular confianza
+        if results['summary']['total_engines'] > 0:
+            results['summary']['confidence'] = int(
+                (results['summary']['malicious'] / results['summary']['total_engines']) * 100
+            )
+        
+        return results
+    
+    def _search_virustotal(self, ioc_value: str, ioc_type: str) -> Dict:
+        """Busca IOC en VirusTotal"""
+        self.api_config._respect_rate_limit('virustotal')
+        headers = self.api_config.get_virustotal_headers()
+        
+        # Mapear tipos de IOC a endpoints de VT
+        endpoint_mapping = {
+            'ip': f"ip_addresses/{ioc_value}",
+            'domain': f"domains/{ioc_value}",
+            'url': f"urls/{base64.urlsafe_b64encode(ioc_value.encode()).decode().rstrip('=')}",
+            'hash_md5': f"files/{ioc_value}",
+            'hash_sha1': f"files/{ioc_value}",
+            'hash_sha256': f"files/{ioc_value}"
+        }
+        
+        endpoint = endpoint_mapping.get(ioc_type)
+        if not endpoint:
+            return {'error': 'Tipo de IOC no soportado'}
+        
+        url = f"{self.api_config.VIRUSTOTAL_BASE_URL_V3}/{endpoint}"
+        response = requests.get(url, headers=headers, timeout=30)
+        
+        if response.status_code == 200:
+            data = response.json()
+            attributes = data.get('data', {}).get('attributes', {})
+            stats = attributes.get('last_analysis_stats', {})
+            
+            return {
+                'malicious': stats.get('malicious', 0),
+                'suspicious': stats.get('suspicious', 0),
+                'harmless': stats.get('harmless', 0),
+                'total_engines': sum(stats.values()) if stats else 0,
+                'scan_date': attributes.get('last_analysis_date'),
+                'reputation': attributes.get('reputation', 0)
+            }
+        elif response.status_code == 404:
+            return {'error': 'IOC no encontrado'}
+        else:
+            return {'error': f'HTTP {response.status_code}'}
+    
+    def _search_xforce(self, ioc_value: str, ioc_type: str) -> Dict:
+        """Busca IOC en IBM X-Force"""
+        self.api_config._respect_rate_limit('ibm_xforce')
+        headers = self.api_config.get_ibm_xforce_headers()
+        
+        # Mapear tipos de IOC a endpoints de X-Force
+        endpoint_mapping = {
+            'ip': f"ipr/{ioc_value}",
+            'domain': f"url/{ioc_value}",
+            'url': f"url/{ioc_value}",
+            'hash_md5': f"malware/{ioc_value}",
+            'hash_sha1': f"malware/{ioc_value}",
+            'hash_sha256': f"malware/{ioc_value}"
+        }
+        
+        endpoint = endpoint_mapping.get(ioc_type)
+        if not endpoint:
+            return {'error': 'Tipo de IOC no soportado'}
+        
+        url = f"{self.api_config.IBM_XFORCE_BASE_URL}/{endpoint}"
+        response = requests.get(url, headers=headers, timeout=30)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            if ioc_type == 'ip':
+                score = data.get('score', 0)
+                return {
+                    'malicious': score >= 3,
+                    'score': score,
+                    'categories': data.get('cats', {}),
+                    'country': data.get('geo', {}).get('country')
+                }
+            elif ioc_type in ['domain', 'url']:
+                result = data.get('result', {})
+                score = result.get('score', 0)
+                return {
+                    'malicious': score >= 3,
+                    'score': score,
+                    'categories': result.get('cats', {})
+                }
+            else:  # hash
+                malware = data.get('malware', {})
+                return {
+                    'malicious': bool(malware),
+                    'family': malware.get('family'),
+                    'type': malware.get('type')
+                }
+        elif response.status_code == 404:
+            return {'error': 'IOC no encontrado'}
+        else:
+            return {'error': f'HTTP {response.status_code}'}
+
+# =====================================================
 # APLICACIÓN WEB
 # =====================================================
 
@@ -1113,6 +1829,10 @@ def create_app():
     storage = AegisStorage(config)
     scraper = ProfessionalThreatIntelligence(config)
     alert_system = AegisAlertSystem(config)
+    
+    # Nuevos componentes para funcionalidad real
+    cve_integration = CVEIntegration(os.environ.get('NVD_API_KEY'))
+    ioc_search_engine = IOCSearchEngine(ThreatIntelAPIs())
     
     # Asegurar que hay datos disponibles para demostración
     storage.ensure_sample_data()
@@ -1526,6 +2246,30 @@ def create_app():
                         </div>
                     </li>
                     <li class="nav-item">
+                        <div class="nav-link" data-section="cves">
+                            <i class="fas fa-bug"></i>
+                            CVEs Recientes
+                        </div>
+                    </li>
+                    <li class="nav-item">
+                        <div class="nav-link" data-section="search">
+                            <i class="fas fa-search-plus"></i>
+                            Búsqueda IOCs
+                        </div>
+                    </li>
+                    <li class="nav-item">
+                        <div class="nav-link" data-section="malware">
+                            <i class="fas fa-virus"></i>
+                            MalwareBazaar
+                        </div>
+                    </li>
+                    <li class="nav-item">
+                        <div class="nav-link" data-section="otx">
+                            <i class="fas fa-satellite-dish"></i>
+                            OTX Pulses
+                        </div>
+                    </li>
+                    <li class="nav-item">
                         <div class="nav-link" data-section="export">
                             <i class="fas fa-download"></i>
                             Exportar Datos
@@ -1749,6 +2493,165 @@ def create_app():
                             Ejecutar Scraping
                         </button>
                         <div id="scrapingStatus" style="margin-top: 1rem;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Nueva sección CVEs -->
+            <div id="cves" class="section">
+                <h2 style="margin-bottom: 2rem; color: #00ff7f;">
+                    <i class="fas fa-bug"></i> CVEs Recientes - NVD
+                </h2>
+                
+                <div class="filters">
+                    <div class="filter-group">
+                        <label class="filter-label">Severidad CVSS</label>
+                        <select class="filter-select" id="cveSeverityFilter">
+                            <option value="">Todas las severidades</option>
+                            <option value="critical">Critical</option>
+                            <option value="high">High</option>
+                            <option value="medium">Medium</option>
+                            <option value="low">Low</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Días atrás</label>
+                        <select class="filter-select" id="cveDaysFilter">
+                            <option value="7">7 días</option>
+                            <option value="14">14 días</option>
+                            <option value="30">30 días</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <button class="action-btn" onclick="loadCVEs()">
+                            <i class="fas fa-sync"></i> Actualizar CVEs
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-bug card-icon"></i>
+                        <h3 class="card-title">Vulnerabilidades Críticas</h3>
+                    </div>
+                    <div id="cvesContainer">
+                        <div class="loading"></div> Cargando CVEs...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Nueva sección búsqueda IOCs -->
+            <div id="search" class="section">
+                <h2 style="margin-bottom: 2rem; color: #00ff7f;">
+                    <i class="fas fa-search-plus"></i> Búsqueda Manual de IOCs
+                </h2>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-search card-icon"></i>
+                        <h3 class="card-title">Buscar en Múltiples Fuentes</h3>
+                    </div>
+                    
+                    <div class="filters" style="margin: 1rem;">
+                        <div class="filter-group">
+                            <label class="filter-label">Tipo de IOC</label>
+                            <select class="filter-select" id="iocTypeSelect">
+                                <option value="ip">Dirección IP</option>
+                                <option value="domain">Dominio</option>
+                                <option value="url">URL</option>
+                                <option value="hash_md5">Hash MD5</option>
+                                <option value="hash_sha1">Hash SHA1</option>
+                                <option value="hash_sha256">Hash SHA256</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label class="filter-label">Valor del IOC</label>
+                            <input type="text" class="filter-input" id="iocValueInput" placeholder="Ingrese IP, dominio, hash, etc." style="min-width: 300px;">
+                        </div>
+                        <div class="filter-group">
+                            <button class="action-btn" onclick="searchIOC()" id="searchBtn">
+                                <i class="fas fa-search"></i> Buscar IOC
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="iocSearchResults" style="margin: 1rem;">
+                        <p style="color: #a0aec0; text-align: center;">
+                            <i class="fas fa-info-circle"></i> 
+                            Ingrese un IOC para buscarlo en VirusTotal, IBM X-Force y otras fuentes
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Nueva sección MalwareBazaar -->
+            <div id="malware" class="section">
+                <h2 style="margin-bottom: 2rem; color: #00ff7f;">
+                    <i class="fas fa-virus"></i> MalwareBazaar - Muestras LATAM
+                </h2>
+                
+                <div class="filters">
+                    <div class="filter-group">
+                        <label class="filter-label">Familia de Malware</label>
+                        <select class="filter-select" id="malwareFamilyFilter">
+                            <option value="">Todas las familias</option>
+                            <option value="mekotio">Mekotio</option>
+                            <option value="grandoreiro">Grandoreiro</option>
+                            <option value="casbaneiro">Casbaneiro</option>
+                            <option value="amavaldo">Amavaldo</option>
+                            <option value="javali">Javali</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">País</label>
+                        <select class="filter-select" id="malwareCountryFilter">
+                            <option value="">Todos los países</option>
+                            <option value="brazil">Brasil</option>
+                            <option value="mexico">México</option>
+                            <option value="argentina">Argentina</option>
+                            <option value="chile">Chile</option>
+                            <option value="colombia">Colombia</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <button class="action-btn" onclick="loadMalwareSamples()">
+                            <i class="fas fa-sync"></i> Actualizar Muestras
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-virus card-icon"></i>
+                        <h3 class="card-title">Muestras de Malware Recientes</h3>
+                    </div>
+                    <div id="malwareSamplesContainer">
+                        <div class="loading"></div> Cargando muestras de malware...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Nueva sección OTX -->
+            <div id="otx" class="section">
+                <h2 style="margin-bottom: 2rem; color: #00ff7f;">
+                    <i class="fas fa-satellite-dish"></i> OTX AlienVault - Pulsos LATAM
+                </h2>
+                
+                <div class="filters">
+                    <div class="filter-group">
+                        <button class="action-btn" onclick="loadOTXPulses()">
+                            <i class="fas fa-sync"></i> Actualizar Pulsos
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-satellite-dish card-icon"></i>
+                        <h3 class="card-title">Pulsos de Amenazas Recientes</h3>
+                    </div>
+                    <div id="otxPulsesContainer">
+                        <div class="loading"></div> Cargando pulsos de OTX...
                     </div>
                 </div>
             </div>
@@ -2434,6 +3337,302 @@ def create_app():
             }
         }
 
+        // ===== NUEVAS FUNCIONES PARA LAS APIS REALES =====
+
+        async function loadCVEs() {
+            try {
+                const severityFilter = document.getElementById('cveSeverityFilter').value;
+                const daysFilter = document.getElementById('cveDaysFilter').value;
+                
+                const params = new URLSearchParams();
+                if (severityFilter) params.append('severity', severityFilter);
+                params.append('days', daysFilter);
+                params.append('limit', '50');
+                
+                const response = await fetch(`/api/cves?${params}`);
+                const cves = await response.json();
+                
+                displayCVEs(cves);
+            } catch (error) {
+                console.error('Error cargando CVEs:', error);
+                document.getElementById('cvesContainer').innerHTML = 
+                    '<p style="color: #ff6b6b;">Error cargando CVEs. Verifique la configuración de NVD API.</p>';
+            }
+        }
+
+        function displayCVEs(cves) {
+            const container = document.getElementById('cvesContainer');
+            
+            if (!cves || cves.length === 0) {
+                container.innerHTML = '<p style="color: #a0aec0;">No se encontraron CVEs para los criterios seleccionados.</p>';
+                return;
+            }
+            
+            let html = '<table class="data-table"><thead><tr>';
+            html += '<th>CVE ID</th><th>Severidad</th><th>Score CVSS</th><th>Fecha</th><th>Descripción</th>';
+            html += '</tr></thead><tbody>';
+            
+            cves.forEach(cve => {
+                const severityClass = cve.cvss_severity ? `severity-${cve.cvss_severity}` : 'severity-low';
+                html += `<tr>
+                    <td><strong>${cve.id}</strong></td>
+                    <td><span class="severity-badge ${severityClass}">${cve.cvss_severity || 'N/A'}</span></td>
+                    <td>${cve.cvss_score || 'N/A'}</td>
+                    <td>${formatTimestamp(cve.published_date)}</td>
+                    <td style="max-width: 400px;">${cve.description.substring(0, 200)}${cve.description.length > 200 ? '...' : ''}</td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        async function searchIOC() {
+            const iocValue = document.getElementById('iocValueInput').value.trim();
+            const iocType = document.getElementById('iocTypeSelect').value;
+            const resultsContainer = document.getElementById('iocSearchResults');
+            const searchBtn = document.getElementById('searchBtn');
+            
+            if (!iocValue) {
+                alert('Por favor ingrese un valor de IOC');
+                return;
+            }
+            
+            searchBtn.disabled = true;
+            searchBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Buscando...';
+            
+            try {
+                const response = await fetch('/api/search_ioc', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        ioc: iocValue,
+                        type: iocType
+                    })
+                });
+                
+                const result = await response.json();
+                displayIOCResults(result);
+                
+            } catch (error) {
+                console.error('Error buscando IOC:', error);
+                resultsContainer.innerHTML = '<p style="color: #ff6b6b;">Error en la búsqueda. Verifique las API keys.</p>';
+            } finally {
+                searchBtn.disabled = false;
+                searchBtn.innerHTML = '<i class="fas fa-search"></i> Buscar IOC';
+            }
+        }
+
+        function displayIOCResults(result) {
+            const container = document.getElementById('iocSearchResults');
+            
+            if (!result || result.error) {
+                container.innerHTML = `<p style="color: #ff6b6b;">Error: ${result?.error || 'Error desconocido'}</p>`;
+                return;
+            }
+            
+            let html = `
+                <div style="margin-bottom: 2rem;">
+                    <h4 style="color: #00ff7f; margin-bottom: 1rem;">
+                        Resultados para: ${result.ioc} (${result.type})
+                    </h4>
+                    <div style="background: rgba(0,255,127,0.1); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                        <strong>Resumen:</strong> 
+                        ${result.summary.malicious}/${result.summary.total_engines} fuentes reportan como malicioso
+                        (Confianza: ${result.summary.confidence}%)
+                    </div>
+                </div>
+            `;
+            
+            // VirusTotal results
+            if (result.sources.virustotal) {
+                const vt = result.sources.virustotal;
+                html += `
+                    <div class="card" style="margin-bottom: 1rem;">
+                        <div class="card-header">
+                            <h4>VirusTotal</h4>
+                        </div>
+                        <div style="padding: 1rem;">
+                `;
+                
+                if (vt.error) {
+                    html += `<p style="color: #ff6b6b;">Error: ${vt.error}</p>`;
+                } else {
+                    html += `
+                        <p><strong>Malicioso:</strong> ${vt.malicious || 0}</p>
+                        <p><strong>Sospechoso:</strong> ${vt.suspicious || 0}</p>
+                        <p><strong>Inofensivo:</strong> ${vt.harmless || 0}</p>
+                        <p><strong>Total motores:</strong> ${vt.total_engines || 0}</p>
+                    `;
+                }
+                html += '</div></div>';
+            }
+            
+            // IBM X-Force results
+            if (result.sources.xforce) {
+                const xf = result.sources.xforce;
+                html += `
+                    <div class="card" style="margin-bottom: 1rem;">
+                        <div class="card-header">
+                            <h4>IBM X-Force</h4>
+                        </div>
+                        <div style="padding: 1rem;">
+                `;
+                
+                if (xf.error) {
+                    html += `<p style="color: #ff6b6b;">Error: ${xf.error}</p>`;
+                } else {
+                    html += `
+                        <p><strong>Malicioso:</strong> ${xf.malicious ? 'Sí' : 'No'}</p>
+                        <p><strong>Score:</strong> ${xf.score || 'N/A'}</p>
+                        ${xf.country ? `<p><strong>País:</strong> ${xf.country}</p>` : ''}
+                    `;
+                }
+                html += '</div></div>';
+            }
+            
+            container.innerHTML = html;
+        }
+
+        async function loadMalwareSamples() {
+            try {
+                const familyFilter = document.getElementById('malwareFamilyFilter').value;
+                const countryFilter = document.getElementById('malwareCountryFilter').value;
+                
+                const params = new URLSearchParams();
+                if (familyFilter) params.append('family', familyFilter);
+                if (countryFilter) params.append('country', countryFilter);
+                params.append('limit', '30');
+                
+                const response = await fetch(`/api/malware_samples?${params}`);
+                const samples = await response.json();
+                
+                displayMalwareSamples(samples);
+            } catch (error) {
+                console.error('Error cargando muestras de malware:', error);
+                document.getElementById('malwareSamplesContainer').innerHTML = 
+                    '<p style="color: #ff6b6b;">Error cargando muestras de MalwareBazaar.</p>';
+            }
+        }
+
+        function displayMalwareSamples(samples) {
+            const container = document.getElementById('malwareSamplesContainer');
+            
+            if (!samples || samples.length === 0) {
+                container.innerHTML = '<p style="color: #a0aec0;">No se encontraron muestras para los criterios seleccionados.</p>';
+                return;
+            }
+            
+            let html = '<table class="data-table"><thead><tr>';
+            html += '<th>SHA256</th><th>Familia</th><th>País</th><th>Última Vista</th><th>Confianza</th>';
+            html += '</tr></thead><tbody>';
+            
+            samples.forEach(sample => {
+                html += `<tr>
+                    <td><code style="font-size: 0.8rem;">${sample.sha256.substring(0, 16)}...</code></td>
+                    <td><strong>${sample.malware_family || 'N/A'}</strong></td>
+                    <td>${sample.country || 'N/A'}</td>
+                    <td>${formatTimestamp(sample.last_seen)}</td>
+                    <td>${sample.confidence}%</td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        async function loadOTXPulses() {
+            try {
+                const response = await fetch('/api/otx_pulses?limit=20');
+                const pulses = await response.json();
+                
+                displayOTXPulses(pulses);
+            } catch (error) {
+                console.error('Error cargando pulsos de OTX:', error);
+                document.getElementById('otxPulsesContainer').innerHTML = 
+                    '<p style="color: #ff6b6b;">Error cargando pulsos de OTX. Verifique la configuración de API.</p>';
+            }
+        }
+
+        function displayOTXPulses(pulses) {
+            const container = document.getElementById('otxPulsesContainer');
+            
+            if (!pulses || pulses.length === 0) {
+                container.innerHTML = '<p style="color: #a0aec0;">No se encontraron pulsos recientes.</p>';
+                return;
+            }
+            
+            let html = '';
+            
+            pulses.forEach(pulse => {
+                html += `
+                    <div class="card" style="margin-bottom: 1rem;">
+                        <div class="card-header">
+                            <h4>${pulse.name}</h4>
+                            <span class="severity-badge severity-${pulse.severity}">${pulse.severity}</span>
+                        </div>
+                        <div style="padding: 1rem;">
+                            <p style="color: #a0aec0; margin-bottom: 1rem;">${pulse.description}</p>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                                <div>
+                                    <strong>Autor:</strong> ${pulse.author || 'N/A'}<br>
+                                    <strong>IOCs:</strong> ${pulse.ioc_count}<br>
+                                    <strong>Países:</strong> ${pulse.countries_affected.join(', ')}
+                                </div>
+                                <div>
+                                    <strong>Creado:</strong> ${formatTimestamp(pulse.created)}<br>
+                                    <strong>Modificado:</strong> ${formatTimestamp(pulse.modified)}<br>
+                                    <strong>Familias:</strong> ${pulse.malware_families.join(', ') || 'N/A'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        // Cargar datos automáticamente al cambiar a las nuevas secciones
+        document.addEventListener('DOMContentLoaded', function() {
+            const navLinks = document.querySelectorAll('.nav-link');
+            
+            navLinks.forEach(link => {
+                link.addEventListener('click', function() {
+                    const section = this.getAttribute('data-section');
+                    
+                    // Cargar datos automáticamente para nuevas secciones
+                    setTimeout(() => {
+                        switch(section) {
+                            case 'cves':
+                                loadCVEs();
+                                break;
+                            case 'malware':
+                                loadMalwareSamples();
+                                break;
+                            case 'otx':
+                                loadOTXPulses();
+                                break;
+                        }
+                    }, 100);
+                });
+            });
+        });
+
+        // Agregar event listener para Enter en búsqueda de IOCs
+        document.addEventListener('DOMContentLoaded', function() {
+            const iocInput = document.getElementById('iocValueInput');
+            if (iocInput) {
+                iocInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        searchIOC();
+                    }
+                });
+            }
+        });
+
         // Inicializar dashboard
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', initializeDashboard);
@@ -2666,6 +3865,158 @@ def create_app():
                 'success': False,
                 'timestamp': datetime.utcnow().isoformat()
             }), 500
+
+    @app.route('/api/cves')
+    def api_cves():
+        """API para obtener CVEs recientes"""
+        try:
+            days_back = int(request.args.get('days', 7))
+            severity = request.args.get('severity', '')
+            limit = int(request.args.get('limit', 50))
+            
+            cves = cve_integration.fetch_recent_cves(days_back)
+            
+            # Aplicar filtros
+            if severity:
+                cves = [cve for cve in cves if cve.cvss_severity.lower() == severity.lower()]
+            
+            # Limitar resultados
+            cves = cves[:limit]
+            
+            # Formatear respuesta
+            formatted_cves = []
+            for cve in cves:
+                formatted_cve = {
+                    'id': cve.id,
+                    'description': cve.description,
+                    'published_date': cve.published_date.isoformat(),
+                    'last_modified': cve.last_modified.isoformat(),
+                    'cvss_score': cve.cvss_score,
+                    'cvss_severity': cve.cvss_severity,
+                    'vector_string': cve.vector_string,
+                    'source': cve.source,
+                    'references': cve.references,
+                    'cwe_ids': cve.cwe_ids,
+                    'affected_products': cve.affected_products
+                }
+                formatted_cves.append(formatted_cve)
+            
+            return jsonify(formatted_cves)
+            
+        except Exception as e:
+            logger.error(f"Error en API CVEs: {e}")
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/search_ioc', methods=['POST'])
+    def api_search_ioc():
+        """API para búsqueda manual de IOCs"""
+        try:
+            data = request.get_json()
+            
+            if not data or 'ioc' not in data or 'type' not in data:
+                return jsonify({'error': 'Se requiere IOC y tipo'}), 400
+            
+            ioc_value = data['ioc'].strip()
+            ioc_type = data['type'].strip()
+            
+            # Validar tipo de IOC
+            valid_types = ['ip', 'domain', 'url', 'hash_md5', 'hash_sha1', 'hash_sha256']
+            if ioc_type not in valid_types:
+                return jsonify({'error': f'Tipo de IOC inválido. Tipos válidos: {valid_types}'}), 400
+            
+            # Realizar búsqueda
+            results = ioc_search_engine.search_ioc(ioc_value, ioc_type)
+            
+            return jsonify(results)
+            
+        except Exception as e:
+            logger.error(f"Error en búsqueda de IOC: {e}")
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/malware_samples')
+    def api_malware_samples():
+        """API para obtener muestras de malware recientes de MalwareBazaar"""
+        try:
+            limit = int(request.args.get('limit', 20))
+            family = request.args.get('family', '')
+            country = request.args.get('country', '')
+            
+            # Obtener datos recientes de MalwareBazaar
+            mb_campaigns = scraper._fetch_malwarebazaar_data()
+            
+            samples = []
+            for campaign in mb_campaigns:
+                for ioc in campaign.iocs:
+                    if ioc.type == 'hash_sha256':
+                        sample = {
+                            'sha256': ioc.value,
+                            'malware_family': ioc.malware_family,
+                            'first_seen': ioc.first_seen.isoformat(),
+                            'last_seen': ioc.last_seen.isoformat(),
+                            'country': ioc.country,
+                            'source': ioc.source,
+                            'confidence': ioc.confidence,
+                            'tags': ioc.tags,
+                            'campaign_name': campaign.name
+                        }
+                        
+                        # Aplicar filtros
+                        if family and ioc.malware_family != family:
+                            continue
+                        if country and ioc.country != country:
+                            continue
+                            
+                        samples.append(sample)
+            
+            # Ordenar por fecha de último avistamiento
+            samples.sort(key=lambda x: x['last_seen'], reverse=True)
+            
+            return jsonify(samples[:limit])
+            
+        except Exception as e:
+            logger.error(f"Error en API muestras de malware: {e}")
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/otx_pulses')
+    def api_otx_pulses():
+        """API para obtener pulsos recientes de OTX AlienVault"""
+        try:
+            limit = int(request.args.get('limit', 20))
+            
+            # Obtener datos recientes de OTX
+            otx_campaigns = scraper._fetch_otx_data()
+            
+            pulses = []
+            for campaign in otx_campaigns:
+                pulse = {
+                    'id': campaign.id,
+                    'name': campaign.name,
+                    'description': campaign.description,
+                    'author': campaign.threat_actor,
+                    'created': campaign.first_seen.isoformat(),
+                    'modified': campaign.last_seen.isoformat(),
+                    'countries_affected': campaign.countries_affected,
+                    'malware_families': campaign.malware_families,
+                    'ioc_count': len(campaign.iocs),
+                    'severity': campaign.severity,
+                    'iocs': [
+                        {
+                            'value': ioc.value,
+                            'type': ioc.type,
+                            'confidence': ioc.confidence
+                        } for ioc in campaign.iocs[:10]  # Limitar IOCs mostrados
+                    ]
+                }
+                pulses.append(pulse)
+            
+            # Ordenar por fecha de modificación
+            pulses.sort(key=lambda x: x['modified'], reverse=True)
+            
+            return jsonify(pulses[:limit])
+            
+        except Exception as e:
+            logger.error(f"Error en API pulsos OTX: {e}")
+            return jsonify({'error': str(e)}), 500
 
     return app
 
