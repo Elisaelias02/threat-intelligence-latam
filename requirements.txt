@@ -1,35 +1,37 @@
-# AEGIS Threat Intelligence - Python Dependencies
+# ================================================================
+# AEGIS Threat Intelligence - Essential Dependencies (Python 3.13)
+# ================================================================
 
 # Core web framework
-Flask==2.3.3
+Flask==3.0.0
 Flask-CORS==4.0.0
 
-# HTTP requests and web scraping
-requests==2.31.0
+# HTTP requests
+requests==2.32.3
+
+# HTML/XML parsing
 beautifulsoup4==4.12.2
-feedparser==6.0.10
 
-# Database
-pymongo==4.5.0
+# RSS/Feed parsing
+feedparser==6.0.11
 
-# Data processing
+# Date utilities
 python-dateutil==2.8.2
 
-# Environment variables
+# Environment configuration
 python-dotenv==1.0.0
 
-# Optional dependencies for enhanced functionality
-# For better JSON handling
-ujson==5.8.0
+# Logging utilities
+colorlog==6.8.2
 
-# For enhanced logging
-colorlog==6.7.0
+# HTTP client
+httpx==0.26.0
 
-# For data validation
-pydantic==2.4.2
+# Timezone handling
+pytz==2024.1
 
-# For caching (optional)
-redis==5.0.1
+# Progress bars
+tqdm==4.66.1
 
-# For async operations (optional)
-aiohttp==3.8.6
+# YAML parsing
+PyYAML==6.0.1

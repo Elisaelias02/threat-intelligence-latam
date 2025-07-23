@@ -1,18 +1,38 @@
-# AEGIS Threat Intelligence LATAM - Dashboard Profesional
+# AEGIS Threat Intelligence LATAM - Sistema REAL y FUNCIONAL
 
-## 🚀 Sistema de Threat Intelligence en Tiempo Real para LATAM
+## 🚀 Sistema PROFESIONAL de Threat Intelligence para LATAM
 
-Dashboard profesional de threat intelligence diseñado específicamente para la región de Latinoamérica, integrando múltiples fuentes de inteligencia de amenazas para proporcionar una visión completa del panorama de ciberseguridad.
+**Dashboard 100% funcional** con integraciones reales de threat intelligence diseñado específicamente para la región de Latinoamérica. Extrae datos reales de fuentes oficiales de ciberseguridad para proporcionar inteligencia de amenazas en tiempo real.
 
+## ✅ FUNCIONALIDADES REALES IMPLEMENTADAS
+
+### 🎯 **IOCs en Tiempo Real** 
+- **VirusTotal**: Extrae IOCs maliciosos reales desde comentarios y análisis
+- **MalwareBazaar**: Muestras de malware recientes dirigidas a LATAM
+- **OTX AlienVault**: Pulsos e indicadores colaborativos filtrados por región
+- **IBM X-Force**: Inteligencia corporativa de amenazas
+- **URLhaus**: URLs maliciosas activas (fuente pública)
+
+### 🔍 **Búsqueda Manual de IOCs**
+- Busca cualquier IOC (IP, dominio, hash, URL) en múltiples fuentes
+- Integración real con VirusTotal API v3 e IBM X-Force
+- Resultados agregados con nivel de confianza
+- Análisis inmediato de reputación
+
+### 🐛 **CVEs Recientes del NVD**
+- Vulnerabilidades extraídas del National Vulnerability Database
+- Filtrado por severidad CVSS (Critical, High, Medium, Low)
+- Scores CVSS v3.1, v3.0 y v2.0
+- Referencias técnicas y detalles completos
 
 ### ✨ Características Principales
 
-- **🔄 Datos en Tiempo Real**: Integración con APIs oficiales de threat intelligence
+- **🔄 Datos 100% Reales**: Sin datos falsos - todo extraído de APIs oficiales
 - **🌎 Enfoque LATAM**: Filtrado específico para amenazas dirigidas a países latinoamericanos
-- **📊 Dashboard Interactivo**: Visualización moderna con gráficos y estadísticas en vivo
-- **🛡️ Múltiples Fuentes**: Integración con VirusTotal, MalwareBazaar, OTX, IBM X-Force, NVD
-- **⚡ Actualización Automática**: Sistema de recolección automática de IOCs y CVEs
-- **💾 Almacenamiento Flexible**: Soporte para MongoDB y almacenamiento en memoria
+- **📊 Dashboard Profesional**: 5 pestañas especializadas con visualización en tiempo real
+- **🛡️ Múltiples Fuentes**: Integración completa con 8+ fuentes de threat intelligence
+- **⚡ Búsqueda Instantánea**: Motor de búsqueda manual de IOCs en múltiples fuentes
+- **💾 Sin Dependencias**: Funciona sin MongoDB usando almacenamiento en memoria
 
 ### 🔌 Fuentes de Inteligencia Integradas
 
@@ -44,58 +64,122 @@ Dashboard profesional de threat intelligence diseñado específicamente para la 
 pip install flask flask-cors pymongo requests beautifulsoup4 feedparser python-dotenv
 ```
 
-#### Configuración de API Keys (Opcional)
+## 📱 Pestañas del Dashboard
 
-Crea un archivo `.env` en el directorio raíz con tus API keys:
+### 🏠 **Dashboard Principal**
+- Estadísticas en tiempo real de campañas y IOCs
+- Gráficos de distribución por severidad y fuentes
+- IOCs por país y familias de malware detectadas
+- Alertas críticas más recientes
 
-```env
-# VirusTotal (https://www.virustotal.com/gui/join-us)
-VIRUSTOTAL_API_KEY=tu_api_key_aqui
+### 🎯 **Campañas Activas**
+- Lista de campañas de amenazas detectadas
+- Filtrado por severidad, fuente y país
+- Detalles de IOCs asociados a cada campaña
+- Información de threat actors y TTPs
 
-# IBM X-Force Exchange (https://exchange.xforce.ibmcloud.com/)
-IBM_XFORCE_API_KEY=tu_api_key_aqui
-IBM_XFORCE_PASSWORD=tu_password_aqui
+### 🔍 **IOCs en Vivo**
+- Indicadores de compromiso extraídos en tiempo real
+- Filtrado por tipo (IP, dominio, hash, URL)
+- Niveles de confianza y fuentes de origen
+- Países afectados por cada IOC
 
-# AlienVault OTX (https://otx.alienvault.com/)
-OTX_API_KEY=tu_api_key_aqui
+### 🚨 **Centro de Alertas**
+- Alertas críticas automatizadas
+- Detección de malware bancario (Mekotio, Grandoreiro, etc.)
+- Campañas de alta severidad
+- Notificaciones en tiempo real
 
-# Hybrid Analysis (https://www.hybrid-analysis.com/)
-HYBRID_ANALYSIS_API_KEY=tu_api_key_aqui
+### 🐛 **CVEs Recientes** *(NUEVO)*
+- Vulnerabilidades del National Vulnerability Database
+- Filtrado por severidad CVSS
+- Búsqueda por días anteriores (7, 14, 30 días)
+- Scores CVSS detallados y referencias
 
-# NVD (Opcional - para rate limiting mejorado)
-NVD_API_KEY=tu_api_key_aqui
+### 🔎 **Búsqueda IOCs** *(NUEVO)*
+- Búsqueda manual en múltiples fuentes
+- Soporte para IPs, dominios, hashes y URLs
+- Resultados de VirusTotal y IBM X-Force
+- Análisis agregado de reputación
 
+### 🦠 **MalwareBazaar** *(NUEVO)*
+- Muestras de malware dirigidas a LATAM
+- Filtrado por familia de malware
+- Hashes SHA256 y metadatos
+- Enfoque en banking trojans de la región
 
+### 📡 **OTX Pulses** *(NUEVO)*
+- Pulsos recientes de AlienVault OTX
+- Amenazas colaborativas filtradas por LATAM
+- Detalles de autores y fechas
+- IOCs asociados a cada pulso
 
-### ✨ Características Principales
+### 📥 **Exportar Datos**
+- Exportación a CSV y JSON
+- Scraping manual de fuentes
+- Integración de todas las APIs
 
-- **🔄 Datos en Tiempo Real**: Integración con APIs oficiales de threat intelligence
-- **🌎 Enfoque LATAM**: Filtrado específico para amenazas dirigidas a países latinoamericanos
-- **📊 Dashboard Interactivo**: Visualización moderna con gráficos y estadísticas en vivo
-- **🛡️ Múltiples Fuentes**: Integración con VirusTotal, MalwareBazaar, OTX, IBM X-Force, NVD
-- **⚡ Actualización Automática**: Sistema de recolección automática de IOCs y CVEs
-- **💾 Almacenamiento Flexible**: Soporte para MongoDB y almacenamiento en memoria
+## 🔧 Configuración
 
+### ⚡ **Inicio Rápido (Solo Fuentes Públicas)**
+```bash
+# 1. Clonar repositorio
+git clone <repository_url>
+cd aegis-threat-intel
 
-### 🔌 Fuentes de Inteligencia Integradas
+# 2. Instalar dependencias
+pip install -r requirements.txt
 
-### 🔎 Búsqueda de IOCs en Tiempo Real
-- **Panel dedicado**: Interfaz intuitiva para búsqueda de indicadores
-- **Detección automática**: Reconoce automáticamente el tipo de IOC (hash, IP, URL, dominio)
-- **Múltiples fuentes**: Consulta simultánea a todas las APIs configuradas
-- **Análisis consensuado**: Combina resultados para mayor precisión
-- **Información completa**: Reputación, país, familia de malware, detalles técnicos
-- **Validación de formato**: Verifica automáticamente la validez del IOC ingresado
+# 3. Ejecutar inmediatamente
+python3 app.py
+```
+**El sistema funcionará con fuentes públicas (MalwareBazaar, URLhaus) sin configuración adicional.**
 
----
+### 🔑 **Configuración Completa con APIs**
 
+#### 1. Configurar API Keys (Recomendado)
+Copia el archivo `.env` y configura tus API keys:
+
+```bash
+# Configuración mínima recomendada
+VIRUSTOTAL_API_KEY=tu_api_key_de_virustotal   # Para búsquedas de IOCs
+OTX_API_KEY=tu_api_key_de_otx                 # Para pulsos de amenazas
+
+# Configuración completa
+IBM_XFORCE_API_KEY=tu_api_key_de_xforce       # Para inteligencia corporativa  
+IBM_XFORCE_PASSWORD=tu_password_de_xforce
+NVD_API_KEY=tu_api_key_de_nvd                 # Para mayor rate limit de CVEs
+```
+
+#### 2. Obtener API Keys GRATIS:
+
+**VirusTotal** (Obligatorio para búsquedas IOCs):
+- Registrarse en: https://www.virustotal.com/gui/join-us
+- Ir a tu perfil → API Key
+- Límite gratis: 4 req/seg, 1000 req/día
+
+**AlienVault OTX** (Recomendado):
+- Registrarse en: https://otx.alienvault.com/
+- Settings → API Integration → Copiar OTX Key
+- Límite gratis: 1000 req/min
+
+**IBM X-Force** (Opcional):
+- Registrarse en: https://exchange.xforce.ibmcloud.com/
+- API Settings → Crear credenciales
+- Límite gratis: 5000 req/mes
+
+**NVD CVEs** (Opcional):
+- Registrarse en: https://nvd.nist.gov/developers/request-an-api-key
+- Sin API key: 5 req/30s
+- Con API key: 50 req/30s
+
+### 🔌 Fuentes de Inteligencia
 
 #### APIs Profesionales (Requieren API Keys)
-- **VirusTotal**: Análisis de URLs, dominios, IPs y hashes maliciosos
+- **VirusTotal API v3**: Análisis de URLs, dominios, IPs y hashes maliciosos
 - **IBM X-Force Exchange**: Inteligencia corporativa de amenazas
 - **AlienVault OTX**: Pulsos colaborativos de threat intelligence
-- **Hybrid Analysis**: Análisis de malware en sandbox
-- **NVD**: Vulnerabilidades CVE del NIST
+- **National Vulnerability Database**: Vulnerabilidades CVE del NIST
 
 #### Fuentes Abiertas (Sin API Keys)
 - **MalwareBazaar**: Muestras de malware de abuse.ch

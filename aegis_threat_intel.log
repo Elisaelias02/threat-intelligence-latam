@@ -1,0 +1,55 @@
+2025-07-23 00:26:01,745 - __main__ - INFO - Iniciando AEGIS Threat Intelligence System...
+2025-07-23 00:26:01,746 - __main__ - WARNING - PyMongo no disponible. Usando almacenamiento en memoria.
+2025-07-23 00:26:01,746 - __main__ - INFO - Sistema profesional de Threat Intelligence inicializado
+2025-07-23 00:26:01,746 - __main__ - INFO - 📊 Estado actual: 0 campañas
+2025-07-23 00:26:01,746 - __main__ - INFO - No hay datos disponibles, generando datos de ejemplo...
+2025-07-23 00:26:01,747 - __main__ - INFO - Datos de ejemplo generados: 2 campañas
+2025-07-23 00:26:01,750 - __main__ - WARNING - PyMongo no disponible. Usando almacenamiento en memoria.
+2025-07-23 00:26:01,750 - __main__ - INFO - Sistema profesional de Threat Intelligence inicializado
+2025-07-23 00:26:01,750 - __main__ - INFO - === INICIANDO RECOLECCIÓN REAL DE THREAT INTELLIGENCE ===
+2025-07-23 00:26:08,070 - __main__ - INFO - VirusTotal: 0 campañas obtenidas
+2025-07-23 00:26:08,451 - __main__ - INFO - MalwareBazaar: 0 campañas obtenidas
+2025-07-23 00:26:08,538 - __main__ - INFO - OTX AlienVault: 0 campañas obtenidas
+2025-07-23 00:26:08,649 - __main__ - INFO - IBM X-Force: 0 campañas obtenidas
+2025-07-23 00:26:08,661 - __main__ - ERROR - Error obteniendo fuentes públicas: HTTPSConnectionPool(host='urlhaus.feodotracker.abuse.ch', port=443): Max retries exceeded with url: /downloads/csv_recent/ (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x7f8f4d8bf890>: Failed to resolve 'urlhaus.feodotracker.abuse.ch' ([Errno -2] Name or service not known)"))
+2025-07-23 00:26:08,662 - __main__ - INFO - Fuentes públicas: 0 campañas obtenidas
+2025-07-23 00:26:08,662 - __main__ - WARNING - No se obtuvieron datos reales, generando datos mínimos de demostración
+2025-07-23 00:26:08,662 - __main__ - INFO - Generando datos mínimos de demostración - configura las API keys para datos reales
+2025-07-23 00:26:08,662 - __main__ - INFO - === RECOLECCIÓN REAL COMPLETADA: 1 campañas ===
+2025-07-23 00:26:08,662 - __main__ - INFO - Campaña almacenada: Campaña de Demostración (1 IOCs)
+2025-07-23 00:26:08,662 - __main__ - INFO - Iniciando servidor web del sistema AEGIS...
+2025-07-23 00:26:08,665 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.30.0.2:5000
+2025-07-23 00:26:08,665 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-07-23 00:41:20,555 - app - WARNING - PyMongo no disponible. Usando almacenamiento en memoria.
+2025-07-23 00:41:20,555 - app - INFO - Sistema profesional de Threat Intelligence inicializado
+2025-07-23 00:41:20,555 - app - INFO - 📊 Estado actual: 0 campañas
+2025-07-23 00:41:20,555 - app - INFO - No hay datos disponibles, generando datos de ejemplo...
+2025-07-23 00:41:20,555 - app - INFO - Datos de ejemplo generados: 2 campañas
+2025-07-23 00:41:26,984 - __main__ - INFO - Iniciando AEGIS Threat Intelligence System...
+2025-07-23 00:41:26,984 - __main__ - WARNING - PyMongo no disponible. Usando almacenamiento en memoria.
+2025-07-23 00:41:26,984 - __main__ - INFO - Sistema profesional de Threat Intelligence inicializado
+2025-07-23 00:41:26,984 - __main__ - INFO - 📊 Estado actual: 0 campañas
+2025-07-23 00:41:26,984 - __main__ - INFO - No hay datos disponibles, generando datos de ejemplo...
+2025-07-23 00:41:26,985 - __main__ - INFO - Datos de ejemplo generados: 2 campañas
+2025-07-23 00:41:26,987 - __main__ - WARNING - PyMongo no disponible. Usando almacenamiento en memoria.
+2025-07-23 00:41:26,987 - __main__ - INFO - Sistema profesional de Threat Intelligence inicializado
+2025-07-23 00:41:26,987 - __main__ - INFO - === INICIANDO RECOLECCIÓN REAL DE THREAT INTELLIGENCE ===
+2025-07-23 00:41:33,274 - __main__ - INFO - VirusTotal: 0 campañas obtenidas
+2025-07-23 00:41:33,668 - __main__ - INFO - MalwareBazaar: 0 campañas obtenidas
+2025-07-23 00:41:33,768 - __main__ - INFO - OTX AlienVault: 0 campañas obtenidas
+2025-07-23 00:41:33,870 - __main__ - INFO - IBM X-Force: 0 campañas obtenidas
+2025-07-23 00:41:33,878 - __main__ - ERROR - Error obteniendo fuentes públicas: HTTPSConnectionPool(host='urlhaus.feodotracker.abuse.ch', port=443): Max retries exceeded with url: /downloads/csv_recent/ (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x7f5bf7e63890>: Failed to resolve 'urlhaus.feodotracker.abuse.ch' ([Errno -2] Name or service not known)"))
+2025-07-23 00:41:33,878 - __main__ - INFO - Fuentes públicas: 0 campañas obtenidas
+2025-07-23 00:41:33,879 - __main__ - WARNING - No se obtuvieron datos reales, generando datos mínimos de demostración
+2025-07-23 00:41:33,879 - __main__ - INFO - Generando datos mínimos de demostración - configura las API keys para datos reales
+2025-07-23 00:41:33,879 - __main__ - INFO - === RECOLECCIÓN REAL COMPLETADA: 1 campañas ===
+2025-07-23 00:41:33,879 - __main__ - INFO - Campaña almacenada: Campaña de Demostración (1 IOCs)
+2025-07-23 00:41:33,879 - __main__ - INFO - Iniciando servidor web del sistema AEGIS...
+2025-07-23 00:41:33,881 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.30.0.2:5000
+2025-07-23 00:41:33,882 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
